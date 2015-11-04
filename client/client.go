@@ -1,6 +1,7 @@
 package client
 
 import (
+    "io"
     "os"
     "fmt"
     "net"
@@ -9,11 +10,17 @@ import (
     "bufio"
     "bytes"
     "common"
+    "strconv"
+    _ "io/ioutil"
 )
 
 var ClientPromot string = "not connected> "
 var FailConnect string
 
+const (
+    done int = iota
+    needMore
+)
 type Client struct {
     opts *ClientOption
     conn net.Conn
@@ -42,19 +49,22 @@ func (c *Client) Main() {
     conn, err := dialer.Dial("tcp", c.opts.SrvAddr)
     if err != nil {
         FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
-        fmt.Printf("%s", FailConnect)
+        fmt.Printf("%s\n", FailConnect)
         c.connected = false
+    } else {
+        c.conn = conn
+        c.reader = bufio.NewReader(conn)
+        c.writer = bufio.NewWriter(conn)
+
+        c.connected = true
+        ClientPromot = c.opts.SrvAddr + "> "
     }
-
-    c.conn = conn
-    c.reader = bufio.NewReader(conn)
-    c.writer = bufio.NewWriter(conn)
-
-    c.connected = true
-
-    ClientPromot = c.opts.SrvAddr + "> "
     c.wg.Wrap(func(){
         c.ioLoop()
+    })
+
+    c.wg.Wrap(func(){
+        c.connectLoop()
     })
 }
 
@@ -69,22 +79,37 @@ func (c *Client) Connect() error {
 
     conn, err := dialer.Dial("tcp", c.opts.SrvAddr)
     if err != nil {
-        FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
-        fmt.Printf("%s", FailConnect)
+//        FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+//        fmt.Printf("%s\n", FailConnect)
         c.connected = false
+        ClientPromot = "not connected> "
+        FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
         return err
     }
     c.conn = conn
     c.reader = bufio.NewReader(conn)
     c.writer = bufio.NewWriter(conn)
     c.connected = true
+    ClientPromot = c.opts.SrvAddr + "> "
     return nil
 }
 
+func (c *Client) connectLoop() {
+    ticker := time.NewTicker(5 * time.Second)
+    for {
+        select {
+        case <- ticker.C:
+            c.Connect()
+        }
+    }
+}
+
 func (c *Client) ioLoop() {
+    //var respFlag int
+    //var respData []byte
     stdReader := bufio.NewReader(os.Stdin)
-    ioReader := c.reader
-    ioWriter := c.writer
+//    ioReader := c.reader
+//    ioWriter := c.writer
     for {
         fmt.Printf("%s", ClientPromot)
         cmd, err := stdReader.ReadSlice('\n')
@@ -95,23 +120,36 @@ func (c *Client) ioLoop() {
             fmt.Printf("%s\n", FailConnect)
             continue
         }
+        ioReader := c.reader
+        ioWriter := c.writer
         data := c.Construct(cmd)
         /*write request*/
         _, err = ioWriter.WriteString(data)
         if err != nil {
+            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            c.connected = false
             continue
+        //    continue
         }
         err = ioWriter.Flush()
         if err != nil {
+            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            c.connected = false
             continue
         }
         /*read response*/
         resp, err := ioReader.ReadSlice('\n')
         if err != nil {
-            break
+            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            c.connected = false
+            continue
         }
-        c.processRespone(resp)
-        //fmt.Printf("%s", resp)
+        err = c.processResponse(resp)
+        if err != nil {
+            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            c.connected = false
+            continue
+        }
     }
 }
 
@@ -129,8 +167,67 @@ func (c *Client)Construct(raw []byte) string {
     return data
 }
 
-func (c *Client) processResponse(resp []byte) {
+func (c *Client) processResponse(resp []byte) error {
+    var firstChar byte
+    var respData []byte
+    var err error
+    //var i int
+    dataLen := len(resp)
 
+    if dataLen < 1 {
+        return err
+    }
+
+//    fmt.Printf("%s", resp)
+    firstChar = resp[0]
+    switch firstChar {
+    case '+':
+        respData = resp[1: dataLen]
+        fmt.Printf("%s", respData)
+        break
+    case '-':
+        respData = resp[1: dataLen]
+        fmt.Printf("(error) %s", respData)
+        break
+    case '$':
+        respData = resp[1: dataLen - 2] //remove \r\n
+        dataLen, err := strconv.Atoi(string(respData))
+        if err != nil {
+            return err
+        }
+        //fmt.Printf("%d\n", dataLen)
+        if dataLen <= 0 {
+            fmt.Printf("(nil)\n")
+            break
+        }
+        leftData := make([]byte, dataLen + 2)
+        _, err = io.ReadFull(c.reader, leftData)
+        if err != nil {
+            return err
+        }
+        fmt.Printf("%s", leftData)
+    case '*':
+        //fmt.Printf("left Line: %s", resp)
+        respData = resp[1: dataLen - 2]
+        leftLines, err := strconv.Atoi(string(respData))
+        if err != nil {
+            return err
+        }
+        //fmt.Printf("left lines: %d\n", leftLines)
+        for i := 0; i < leftLines; i ++ {
+            _, err := c.reader.ReadSlice('\n')
+            if err != nil {
+                return err
+            }
+          //  fmt.Printf("left data: %d", dataLen)
+            data, err := c.reader.ReadSlice('\n')
+            if err != nil {
+                return err
+            }
+            fmt.Printf("%d) %s", i, data)
+        }
+    }
+    return err
 }
 
 func (c *Client) Exit() {

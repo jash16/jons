@@ -25,4 +25,5 @@ func main() {
     cli.Main()
 
     <- sigChan
+    println("")
 }
