@@ -62,10 +62,11 @@ func (c *Client) Main() {
     c.wg.Wrap(func(){
         c.ioLoop()
     })
-
+/*
     c.wg.Wrap(func(){
         c.connectLoop()
     })
+*/
 }
 
 func (c *Client) Connect() error {
@@ -99,7 +100,9 @@ func (c *Client) connectLoop() {
     for {
         select {
         case <- ticker.C:
+            c.Lock()
             c.Connect()
+            c.Unlock()
         }
     }
 }
@@ -111,14 +114,23 @@ func (c *Client) ioLoop() {
 //    ioReader := c.reader
 //    ioWriter := c.writer
     for {
+        select {
+        case <-c.exitChan:
+            goto end
+        default:
+        }
         fmt.Printf("%s", ClientPromot)
         cmd, err := stdReader.ReadSlice('\n')
         if err != nil {
             break
         }
         if c.connected == false {
-            fmt.Printf("%s\n", FailConnect)
-            continue
+            //fmt.Printf("%s\n", FailConnect)
+            err := c.Connect()
+            if err != nil {
+                fmt.Printf("%s\n", FailConnect)
+                continue
+            }
         }
         ioReader := c.reader
         ioWriter := c.writer
@@ -126,31 +138,53 @@ func (c *Client) ioLoop() {
         /*write request*/
         _, err = ioWriter.WriteString(data)
         if err != nil {
-            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
             c.connected = false
+//            c.Lock()
+            err := c.Connect()
+            if err != nil {
+                fmt.Printf("%s\n", FailConnect)
+            }
+//            c.Unlock()
+            //FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            //c.connected = false
             continue
         //    continue
         }
         err = ioWriter.Flush()
         if err != nil {
-            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            //FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
             c.connected = false
+//            c.Lock()
+            err := c.Connect()
+            if err != nil {
+                fmt.Printf("%s\n", FailConnect)
+            }
+//            c.Unlock()
             continue
         }
         /*read response*/
         resp, err := ioReader.ReadSlice('\n')
         if err != nil {
-            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            //FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
             c.connected = false
+            err := c.Connect()
+            if err != nil {
+                fmt.Printf("%s\n", FailConnect)
+            }
             continue
         }
         err = c.processResponse(resp)
         if err != nil {
-            FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
+            //FailConnect = fmt.Sprintf("Could not connect to Redis at %s: %s", c.opts.SrvAddr, err)
             c.connected = false
+            err := c.Connect()
+            if err != nil {
+                fmt.Printf("%s\n", FailConnect)
+            }
             continue
         }
     }
+end:
 }
 
 func (c *Client)Construct(raw []byte) string {
