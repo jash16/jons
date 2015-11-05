@@ -223,6 +223,15 @@ func (c *Client) processResponse(resp []byte) error {
         respData = resp[1: dataLen]
         fmt.Printf("(error) %s", respData)
         break
+    case ':':
+        respData = resp[1: dataLen - 2]
+        respLen, err := strconv.Atoi(string(respData))
+        if err != nil {
+            fmt.Printf("(error type) %s", respData)
+            return err
+        }
+        fmt.Printf("(integer) %d\n", respLen)
+        break
     case '$':
         respData = resp[1: dataLen - 2] //remove \r\n
         dataLen, err := strconv.Atoi(string(respData))
