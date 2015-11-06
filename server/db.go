@@ -21,6 +21,11 @@ const (
     JON_ENCODING_SKIPLIST
 )
 
+type Key struct {
+    Type int32
+    Value string
+}
+
 type Element struct {
     Type int32
     Encode int32
@@ -28,6 +33,17 @@ type Element struct {
     Value interface{}
 }
 
+func NewElement(typ int32, value interface{}) *Element {
+    return &Element {
+        Type: typ,
+        Encode: JON_ENCODING_RAW,
+        Value:
+    }
+}
+
+func (e *Element) Copy() *Element {
+
+}
 type DB struct {
     DataMap map[Element]Element
     sync.RWMutex
