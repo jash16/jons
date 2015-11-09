@@ -36,19 +36,64 @@ type Element struct {
 }
 
 func NewElement(typ int32, value interface{}) *Element {
+
+    switch value.(type) {
+    case string:
+    case map[string]string:
+    case map[string]byte:
+    case [][]byte:
+    default:
+        return nil
+    }
+
     return &Element {
         Type: typ,
         Encode: JON_ENCODING_RAW,
         Value: value,
+        Ref: 0,
     }
 }
 
 func (e *Element) Copy() *Element {
+    var val2 interface{}
     switch e.Value.(type) {
     case string:
-    case map[string]string: //use for hash type
-    case map[string]byte:   //use for set and sorted set
-    case [][]byte: //use for list
+        val2 = e.Value
+
+    case map[string]string: { //use for hash type
+        val := make(map[string]string)
+        v, _ := e.Value.(map[string]string)
+        for key, value := range v {
+            val[key] = value
+        }
+        val2 = val
+    }
+    case map[string]byte:{   //use for set and sorted set
+        val := make(map[string]byte)
+        v, _ := e.Value.(map[string]byte)
+        for key, value := range v {
+            val[key] = value
+        }
+        val2 = val
+    }
+    case [][]byte:{ //use for list
+        v, _ := e.Value.([][]byte)
+        val := make([][]byte, len(v))
+        for i, _ := range v {
+            val[i] = make([]byte, len(v[i]))
+            copy(val[i], v[i])
+        }
+            val2 = val
+    }
+    default:
+        return nil
+    }
+
+    return &Element {
+        Type: e.Type,
+        Ref: e.Ref,
+        Encode: e.Encode,
+        Value: val2,
     }
 }
 
@@ -68,7 +113,7 @@ type JonDb struct {
 
 func NewDB() *DB {
     return &DB{
-        DataMap: make(map[Element]Element),
+        DataMap: make(map[Key]Element),
     }
 }
 
