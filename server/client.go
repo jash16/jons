@@ -28,5 +28,19 @@ func NewClient(conn net.Conn) *Client {
         conn: conn,
         reader: bufio.NewReader(conn),
         writer: bufio.NewWriter(conn),
+        selectDb: 0,
     }
+}
+
+func (c *Client) Exit() {
+    c.Lock()
+    if c.exitChan != nil {
+        close(c.exitChan)
+    }
+    c.Unlock()
+    c.Close()
+}
+
+func (c *Client) Close() {
+    c.conn.Close()
 }

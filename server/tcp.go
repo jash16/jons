@@ -10,9 +10,12 @@ type tcpServer struct {
 
 func (t *tcpServer)Handle(conn net.Conn) {
     t.ctx.s.logf("receive connect: %s", conn.RemoteAddr())
+    proto := &JonProtocol{
+        ctx: t.ctx,
+    }
 
-}
-
-func (t *tcpServer)IOLoop() {
-
+    err := proto.IOLoop(conn)
+    if err != nil {
+        t.ctx.s.logf("client %s err - %s", conn.RemoteAddr(), err)
+    }
 }

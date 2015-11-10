@@ -98,7 +98,7 @@ func (e *Element) Copy() *Element {
 }
 
 type DB struct {
-    DataMap map[Key]Element
+    DataMap map[Key]*Element
     sync.RWMutex
 }
 
@@ -117,6 +117,17 @@ func NewDB() *DB {
     }
 }
 
+func (d *DB) Copy() *DB {
+    d2 := NewDB()
+    d.RLock()
+    defer d.RUnlock()
+    for key, ele := range d.DataMap {
+        k := key,
+        e := ele.Copy()
+        d2.DataMap[k] = e
+    }
+}
+
 func NewJonDb() *JonDb {
     return &JonDb {
         Dict: NewDB(),
@@ -125,4 +136,8 @@ func NewJonDb() *JonDb {
         Ready: NewDB(),
         Watch: NewDB(),
     }
+}
+
+func (d *JobDb) Persist() {
+
 }
