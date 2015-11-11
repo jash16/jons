@@ -7,5 +7,5 @@ import (
 type ServerOptions struct {
     TCPAddr string
     ClientTimeout time.Duration
-    DbNum int32
+    DbNum int
 }

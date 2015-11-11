@@ -2,8 +2,9 @@ package server
 
 import (
     "net"
-    "io"
+//    "io"
     "bufio"
+    "fmt"
     "sync"
 )
 
@@ -43,4 +44,15 @@ func (c *Client) Exit() {
 
 func (c *Client) Close() {
     c.conn.Close()
+}
+
+func (c *Client) Write(data string) {
+    c.writer.Write([]byte(data))
+    c.writer.Flush()
+}
+
+func (c *Client) ErrorResponse(f string, args...interface{}) {
+    resp := fmt.Sprintf(f, args...)
+    c.writer.Write([]byte(resp))
+    c.writer.Flush()
 }

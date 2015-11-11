@@ -2,6 +2,7 @@ package server
 
 import (
     "common"
+    "fmt"
     "protocol"
     "os"
     "log"
@@ -12,26 +13,26 @@ import (
 type Server struct {
     db []*JonDb
 
-    tcpListener *net.Listener
-    Opts *ServerOption
-    logger Logger
+    tcpListener net.Listener
+    Opts *ServerOptions
+    logger common.Logger
 
     wg common.WaitGroupWrapper
     sync.Mutex
     exitChan chan bool
 }
 
-func NewServer(opt *ServerOption) *Server {
+func NewServer(opt *ServerOptions) *Server {
     return &Server {
         logger: log.New(os.Stderr, "[jon_server]", log.Ldate|log.Ltime|log.Lmicroseconds),
         Opts: opt,
-        exitChan: make(chan bool)
+        exitChan: make(chan bool),
     }
 }
 
 func (s *Server) Main() {
-    var dbs []*JobDb
-    for i := 0; i < s.Opts.DbNum; i ++ {
+    var dbs []*JonDb
+    for i := 0; i < int(s.Opts.DbNum); i ++ {
         db := NewJonDb()
         dbs = append(dbs, db)
     }
@@ -42,7 +43,7 @@ func (s *Server) Main() {
         s.logf("listen %s error - %s", s.Opts.TCPAddr, err)
         os.Exit(1)
     }
-    s.tcpListener = tcpListner
+    s.tcpListener = tcpListener
     ctx := &context{s: s}
     tcpSrv := &tcpServer {
         ctx: ctx,
@@ -62,5 +63,5 @@ func (s *Server) Exit() {
         s.tcpListener.Close()
     }
     close(s.exitChan)
-    s.Wait()
+    s.wg.Wait()
 }

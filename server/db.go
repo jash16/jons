@@ -6,7 +6,7 @@ import (
 )
 
 const (
-    JON_STRING iota
+    JON_STRING int32 = iota
     JON_LIST
     JON_HASH
     JON_SET
@@ -23,8 +23,8 @@ const (
 )
 
 type Key struct {
-    Type int32
-    Ref int32
+    //Type int32
+    //Ref int32
     Value string
 }
 
@@ -50,7 +50,7 @@ func NewElement(typ int32, value interface{}) *Element {
         Type: typ,
         Encode: JON_ENCODING_RAW,
         Value: value,
-        Ref: 0,
+        Ref: 1,
     }
 }
 
@@ -98,7 +98,7 @@ func (e *Element) Copy() *Element {
 }
 
 type DB struct {
-    DataMap map[Key]*Element
+    DataMap map[string]*Element
     sync.RWMutex
 }
 
@@ -113,7 +113,7 @@ type JonDb struct {
 
 func NewDB() *DB {
     return &DB{
-        DataMap: make(map[Key]Element),
+        DataMap: make(map[string]*Element),
     }
 }
 
@@ -122,10 +122,11 @@ func (d *DB) Copy() *DB {
     d.RLock()
     defer d.RUnlock()
     for key, ele := range d.DataMap {
-        k := key,
+        k := key
         e := ele.Copy()
         d2.DataMap[k] = e
     }
+    return d2
 }
 
 func NewJonDb() *JonDb {
@@ -138,6 +139,6 @@ func NewJonDb() *JonDb {
     }
 }
 
-func (d *JobDb) Persist() {
+func (d *JonDb) Persist() {
 
 }
