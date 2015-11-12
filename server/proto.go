@@ -2,7 +2,7 @@ package server
 
 import (
     "io"
-    "fmt"
+    //"fmt"
     "net"
     "strconv"
 )
@@ -106,6 +106,20 @@ end:
 }
 
 func (p *JonProtocol) processCommand(cli *Client) error {
+
+    var err error
+    cmd := string(cli.argv[0])
+    if cmdFunc, ok := p.ctx.s.cmdMap[cmd] ; ok {
+        err = cmdFunc(cli)
+    } else {
+        cli.ErrorResponse(wrongCommand, cli.argv[0])
+    }
+    return err
+}
+
+/*
+func (p *JonProtocol) processCommand(cli *Client) error {
+
     var err error
     switch string(cli.argv[0]) {
     case "set":
@@ -179,3 +193,4 @@ func (p *JonProtocol) Get(cli *Client) error {
      cli.Write(respStr)
      return nil
 }
+*/

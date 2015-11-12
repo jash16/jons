@@ -11,12 +11,16 @@ import (
     "sync"
 )
 
+type cmdFunc func(cli *Client) error
+
 type Server struct {
     db []*JonDb
 
     tcpListener net.Listener
     Opts *ServerOptions
     logger common.Logger
+
+    cmdMap map[string]cmdFunc
 
     wg common.WaitGroupWrapper
     sync.Mutex
@@ -28,6 +32,7 @@ func NewServer(opt *ServerOptions) *Server {
         logger: log.New(os.Stderr, "[jon_server]", log.Ldate|log.Ltime|log.Lmicroseconds),
         Opts: opt,
         exitChan: make(chan bool),
+        cmdMap: make(map[string]cmdFunc),
     }
 }
 
@@ -39,6 +44,7 @@ func (s *Server) Main() {
     }
     s.db = dbs
 
+    s.Register()
     tcpListener, err := net.Listen("tcp", s.Opts.TCPAddr)
     if err != nil {
         s.logf("listen %s error - %s", s.Opts.TCPAddr, err)
@@ -57,6 +63,10 @@ func (s *Server) Main() {
 
 func (s *Server) logf(data string, args...interface{}) {
     s.logger.Output(2, fmt.Sprintf(data, args...))
+}
+
+func (s *Server) initRdb() {
+
 }
 
 func (s *Server) expireLoop() {
