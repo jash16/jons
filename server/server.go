@@ -3,6 +3,7 @@ package server
 import (
     "common"
     "fmt"
+    "time"
     "protocol"
     "os"
     "log"
@@ -56,6 +57,17 @@ func (s *Server) Main() {
 
 func (s *Server) logf(data string, args...interface{}) {
     s.logger.Output(2, fmt.Sprintf(data, args...))
+}
+
+func (s *Server) expireLoop() {
+    //var expireKeysPerTime int64
+    //var expireTimesPerTime int64
+    ticker := time.NewTicker(100 * time.Millisecond)
+    for {
+        select {
+        case <- ticker.C:
+        }
+    }
 }
 
 func (s *Server) Exit() {

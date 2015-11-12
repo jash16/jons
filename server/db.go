@@ -1,6 +1,7 @@
 package server
 
 import (
+    "time"
     "sync"
 //    "container/list"
 )
@@ -11,6 +12,7 @@ const (
     JON_HASH
     JON_SET
     JON_SORTSET
+    JON_INT64
 
     JON_ENCODING_RAW
     JON_ENCODING_INT
@@ -20,6 +22,8 @@ const (
     JON_ENCODING_ZIPLIST
     JON_ENCODING_INTSET
     JON_ENCODING_SKIPLIST
+
+    JON_KEY_NOTEXIST
 )
 
 type Key struct {
@@ -42,6 +46,7 @@ func NewElement(typ int32, value interface{}) *Element {
     case map[string]string:
     case map[string]byte:
     case [][]byte:
+    case int64:
     default:
         return nil
     }
@@ -59,7 +64,8 @@ func (e *Element) Copy() *Element {
     switch e.Value.(type) {
     case string:
         val2 = e.Value
-
+    case int64:
+        val2 = e.Value // for expire key
     case map[string]string: { //use for hash type
         val := make(map[string]string)
         v, _ := e.Value.(map[string]string)
@@ -137,6 +143,61 @@ func NewJonDb() *JonDb {
         Ready: NewDB(),
         Watch: NewDB(),
     }
+}
+
+func (d *JonDb) SetKey(K string, V *Element) {
+    dict := d.Dict
+    dict.Lock()
+    defer dict.Unlock()
+    dict.DataMap[K] = V
+}
+
+func (d *JonDb) LookupKey(K string) *Element {
+    d.ExpireKey(K)
+    var ele *Element
+    var ok bool
+    dict := d.Dict
+    dict.RLock()
+    defer dict.RUnlock()
+    if ele, ok = dict.DataMap[K]; ok {
+        return ele
+    }
+    return nil
+}
+
+func (d *JonDb) LookupKeyType(K string) int32 {
+    ele := d.LookupKey(K)
+    if ele != nil {
+        return ele.Type
+    }
+    return JON_KEY_NOTEXIST
+}
+
+func (d *JonDb) ExpireKey(K string) bool {
+    expdict := d.Expires
+    var expire int64
+    var ele *Element
+    var ok bool
+    now := time.Now().Unix()
+    expdict.Lock()
+    //defer expdict.Unlock()
+    if ele, ok = expdict.DataMap[K]; !ok {
+        expdict.Unlock()
+        return false
+    }
+    expire = ele.Value.(int64)
+    if expire >= now {
+        expdict.Unlock()
+        return false
+    }
+    delete(expdict.DataMap, K)
+    expdict.Unlock()
+
+    dict := d.Dict
+    dict.Lock()
+    delete(dict.DataMap, K)
+    dict.Unlock()
+    return true
 }
 
 func (d *JonDb) Persist() {
