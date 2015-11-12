@@ -21,6 +21,7 @@ var (
     wrongCommand string = "-ERR unknown command '%s'\r\n"
     wrongDbIdx string = "-ERR invalid DB index\r\n"
     wrongKey string = "$-1\r\n"
+    wrongIdx string = "-ERR index out of range\r\n"
 )
 
 type Protocol interface {
@@ -40,9 +41,7 @@ func (p *JonProtocol)IOLoop(conn net.Conn) error {
     var cmd []byte
     srvExitChan = p.ctx.s.exitChan
     client := NewClient(conn)
-    //client.db = p.ctx.s.db[client.selectDb]
     r := client.reader
-   // w := client.writer
     cliExitChan = client.exitChan
     for {
         select {

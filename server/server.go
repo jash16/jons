@@ -44,7 +44,9 @@ func (s *Server) Main() {
     }
     s.db = dbs
 
+    //register funcs
     s.Register()
+
     tcpListener, err := net.Listen("tcp", s.Opts.TCPAddr)
     if err != nil {
         s.logf("listen %s error - %s", s.Opts.TCPAddr, err)
