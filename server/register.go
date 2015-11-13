@@ -7,11 +7,12 @@ func (s *Server) Register() {
     s.cmdMap["mset"] = s.Mset
     s.cmdMap["mget"] = s.Mget
     s.cmdMap["strlen"] = s.Strlen
+    s.cmdMap["getset"] = s.Getset
 
 //for hash
 
 //for list
-
+    s.cmdMap["lpush"] = s.Lpush
 //for set
 
 //for zset

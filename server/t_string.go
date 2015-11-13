@@ -137,6 +137,26 @@ func (s *Server) Getrange(cli *Client) error {
 }
 
 func (s *Server) Getset(cli *Client) error {
+    if cli.argc != 3 {
+        cli.ErrorResponse(wrongArgs, "getset")
+        return nil
+    }
+    key_str := string(cli.argv[1])
+    val_str := string(cli.argv[2])
+    db := s.db[cli.selectDb]
+    ele := db.LookupKey(key_str)
+    val := NewElement(JON_STRING, val_str)
+    if ele == nil {
+        db.SetKey(key_str, val)
+        cli.Write(wrongKey)
+    } else if ele.Type != JON_STRING {
+        cli.Write(wrongType)
+    } else {
+        db.SetKey(key_str, val)
+        val_str := val.Value.(string)
+        resp := fmt.Sprintf("$%d\r\n%s\r\n", len(val_str), val_str)
+        cli.Write(resp)
+    }
     return nil
 }
 
@@ -154,7 +174,7 @@ func (s *Server) Incrbyfloat(cli *Client) error {
 
 func (s *Server) Strlen(cli *Client) error {
     if cli.argc != 2 {
-        cli.Write(wrongArgs)
+        cli.ErrorResponse(wrongArgs, "strlen")
         return nil
     }
     db := s.db[cli.selectDb]
