@@ -2,6 +2,7 @@ package server
 
 import (
     "fmt"
+    "strconv"
 )
 
 func (s *Server)Lpush(cli *Client) error {
@@ -68,7 +69,28 @@ func (s *Server) Lrange(cli *Client) error {
     } else {
         val := ele.Value.([][]byte)
         val_num := len(val)
-
+        if end == -1 {
+            end = val_num -1
+        } else if end > val_num {
+            end = val_num
+        }
+        if start < -(val_num + 1) {
+            start = 0
+        } else if start < 0 && start >= -val_num {
+            start += val_num
+        }
+        if start > end {
+            cli.Write("*0\r\n")
+        } else {
+            send_val_num := end - start + 1
+            resp := fmt.Sprintf("*%d\r\n", send_val_num)
+            for i := start; i <= end; i ++ {
+                cur_val := val[i]
+                cur_len := len(cur_val)
+                resp = fmt.Sprintf("%s$%d\r\n%s\r\n", resp, cur_len, cur_val)
+            }
+            cli.Write(resp)
+        }
     }
     return nil
 }

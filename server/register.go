@@ -13,6 +13,7 @@ func (s *Server) Register() {
 
 //for list
     s.cmdMap["lpush"] = s.Lpush
+    s.cmdMap["lrange"] = s.Lrange
 //for set
 
 //for zset
