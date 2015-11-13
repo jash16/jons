@@ -42,7 +42,7 @@ func (s *Server) Select(cli *Client) error {
 }
 
 func (s *Server) genericGet(key string) *Element {
-
+    return nil
 }
 
 func (s *Server) Get(cli *Client) error {
@@ -74,11 +74,13 @@ func (s *Server)Mget(cli *Client) error {
         cli.ErrorResponse(wrongArgs, "mget")
         return nil
     }
+    db := s.db[cli.selectDb]
+
     var resp string
     resp += fmt.Sprintf("*%d\r\n", cli.argc - 1)
-    for i := 1; i < cli.argc; i ++ {
+    for i := 1; i < int(cli.argc); i ++ {
         key := string(cli.argv[1])
-        db := s.db[cli.selectDb]
+        //db := s.db[cli.selectDb]
         val := db.LookupKey(key)
         if val == nil || val.Type != JON_STRING {
             resp += fmt.Sprintf("$-1\r\n")
@@ -98,7 +100,76 @@ func (s *Server)Mset(cli *Client) error {
         return nil
     }
 
-    for i := 1; i < cli.argc; i += 2 {
-    
+    db := s.db[cli.selectDb]
+    for i := 1; i < int(cli.argc); i += 2 {
+        key_str := string(cli.argv[i])
+        val_str := string(cli.argv[i+1])
+        val := NewElement(JON_STRING, val_str)
+        db.SetKey(key_str, val)
     }
+    cli.Write(ok)
+    return nil
+}
+
+func (s *Server)Append(cli *Client) error {
+
+    return nil
+}
+
+func (s *Server)Bitcount(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Decr(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Decrby(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Getbit(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Getrange(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Getset(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Incr(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Incrby(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Incrbyfloat(cli *Client) error {
+    return nil
+}
+
+func (s *Server) Strlen(cli *Client) error {
+    if cli.argc != 2 {
+        cli.Write(wrongArgs)
+        return nil
+    }
+    db := s.db[cli.selectDb]
+    key_str := string(cli.argv[1])
+    ele := db.LookupKey(key_str)
+    if ele == nil {
+        cli.Write(zeroKey)
+        return nil
+    } else if ele.Type != JON_STRING {
+        cli.Write(wrongType)
+        return nil
+    }
+    val_str := ele.Value.(string)
+    length := len(val_str)
+    resp := fmt.Sprintf(":%d\r\n", length)
+    cli.Write(resp)
+    return nil
 }

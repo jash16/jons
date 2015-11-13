@@ -14,6 +14,7 @@ func init() {
     dump = make([]byte, defaultSize)
 }
 
+/*
 var (
     ok string = "+OK\r\n"
     wrongType string = "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"
@@ -22,8 +23,9 @@ var (
     wrongDbIdx string = "-ERR invalid DB index\r\n"
     wrongKey string = "$-1\r\n"
     wrongIdx string = "-ERR index out of range\r\n"
+    zeroKey string = ":0\r\n"
 )
-
+*/
 type Protocol interface {
     IOLoop(conn net.Conn) error
 }
