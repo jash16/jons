@@ -20,4 +20,6 @@ func (s *Server) Register() {
 
 //for db
     s.cmdMap["select"] = s.Select
+    s.cmdMap["keys"] = s.Keys
+    s.cmdMap["del"] = s.Del
 }

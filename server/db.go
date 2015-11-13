@@ -173,6 +173,24 @@ func (d *JonDb) LookupKeyType(K string) int32 {
     return JON_KEY_NOTEXIST
 }
 
+func (d *JonDb) DeleteKey(K string) bool {
+    expdict := d.Expires
+    dict := d.Dict
+
+    expdict.Lock()
+    delete(expdict.DataMap, K)
+    expdict.Unlock()
+
+    dict.Lock()
+    if _, ok := dict.DataMap[K]; !ok {
+        dict.Unlock()
+        return false
+    }
+    delete(dict.DataMap, K)
+    dict.Unlock()
+    return true
+}
+
 func (d *JonDb) ExpireKey(K string) bool {
     expdict := d.Expires
     var expire int64
@@ -198,6 +216,28 @@ func (d *JonDb) ExpireKey(K string) bool {
     delete(dict.DataMap, K)
     dict.Unlock()
     return true
+}
+
+func (d *JonDb) Keys() []string {
+    dict := d.Dict
+    dict.Lock()
+    defer dict.Unlock()
+    var resp []string
+    for k, _ := range (dict.DataMap) {
+        resp = append(resp, k)
+    }
+    return resp
+}
+
+func (d *JonDb) Haskey(K string) bool {
+    d.ExpireKey(K)
+    dict := d.Dict
+    dict.Lock()
+    defer dict.Unlock()
+    if _, ok := dict.DataMap[K]; ok {
+        return true
+    }
+    return false
 }
 
 func (d *JonDb) Persist() {
