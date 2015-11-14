@@ -10,10 +10,15 @@ func (s *Server) Register() {
     s.cmdMap["getset"] = s.Getset
 
 //for hash
+    s.cmdMap["hset"] = s.Hset
+    s.cmdMap["hget"] = s.Hget
+    s.cmdMap["hdel"] = s.Hdel
+    s.cmdMap["hlen"] = s.Hlen
 
 //for list
     s.cmdMap["lpush"] = s.Lpush
     s.cmdMap["lrange"] = s.Lrange
+
 //for set
 
 //for zset

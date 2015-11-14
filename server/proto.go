@@ -14,18 +14,6 @@ func init() {
     dump = make([]byte, defaultSize)
 }
 
-/*
-var (
-    ok string = "+OK\r\n"
-    wrongType string = "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"
-    wrongArgs string = "-ERR wrong number of arguments for '%s' command\r\n"
-    wrongCommand string = "-ERR unknown command '%s'\r\n"
-    wrongDbIdx string = "-ERR invalid DB index\r\n"
-    wrongKey string = "$-1\r\n"
-    wrongIdx string = "-ERR index out of range\r\n"
-    zeroKey string = ":0\r\n"
-)
-*/
 type Protocol interface {
     IOLoop(conn net.Conn) error
 }
@@ -117,81 +105,3 @@ func (p *JonProtocol) processCommand(cli *Client) error {
     }
     return err
 }
-
-/*
-func (p *JonProtocol) processCommand(cli *Client) error {
-
-    var err error
-    switch string(cli.argv[0]) {
-    case "set":
-        err = p.Set(cli)
-    case "select":
-        err = p.Select(cli)
-    case "get":
-        err = p.Get(cli)
-    default:
-        cli.ErrorResponse(wrongCommand, cli.argv[0])
-    }
-    return err
-}
-
-func (p *JonProtocol) Set(cli *Client) error {
-    if (cli.argc != 3) {
-        cli.ErrorResponse(wrongArgs, "set")
-        return nil
-    }
-    key_str := string(cli.argv[1])
-    val_str := string(cli.argv[2])
-    p.ctx.s.logf("receive command: %s %s %s", cli.argv[0], cli.argv[1], cli.argv[2])
-    K := key_str
-    V := NewElement(JON_STRING, val_str)
-    db := p.ctx.s.db[cli.selectDb]
-    typ := db.LookupKeyType(K)
-    if typ != JON_KEY_NOTEXIST && typ != JON_STRING {
-        cli.Write(wrongType)
-        return nil
-    }
-    db.SetKey(K, V)
-    cli.Write(ok)
-    return nil
-}
-
-func (p *JonProtocol) Select(cli *Client) error {
-    if cli.argc != 2 {
-        cli.ErrorResponse(wrongArgs, "select")
-        return nil
-    }
-    dbIdx, _ := strconv.Atoi(string(cli.argv[1]))
-    if dbIdx >= 16 || dbIdx < 0 {
-        cli.ErrorResponse(wrongDbIdx)
-        return nil
-    }
-    cli.selectDb = int32(dbIdx)
-    cli.Write(ok)
-    return nil
-}
-
-func (p *JonProtocol) Get(cli *Client) error {
-     var val *Element
-     if cli.argc != 2 {
-         cli.ErrorResponse(wrongArgs, "get")
-         return nil
-     }
-     key := string(cli.argv[1])
-     db := p.ctx.s.db[cli.selectDb]
-     val = db.LookupKey(key)
-     if val == nil {
-         cli.Write(wrongKey)
-         return nil
-     }
-     if val.Type != JON_STRING {
-         cli.Write(wrongType)
-         return nil
-     }
-     valStr, _ := val.Value.(string)
-     valLen := len(valStr)
-     respStr := fmt.Sprintf("$%d\r\n%s\r\n", valLen, valStr)
-     cli.Write(respStr)
-     return nil
-}
-*/
