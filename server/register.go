@@ -14,6 +14,12 @@ func (s *Server) Register() {
     s.cmdMap["hget"] = s.Hget
     s.cmdMap["hdel"] = s.Hdel
     s.cmdMap["hlen"] = s.Hlen
+    s.cmdMap["hgetall"] = s.Hgetall
+    s.cmdMap["hkeys"] = s.Hkeys
+    s.cmdMap["hexists"] = s.Hexists
+    s.cmdMap["hvals"] = s.Hvals
+    s.cmdMap["hmget"] = s.Hmget
+    s.cmdMap["hmset"] = s.Hmset
 
 //for list
     s.cmdMap["lpush"] = s.Lpush
