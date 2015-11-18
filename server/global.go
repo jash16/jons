@@ -3,6 +3,8 @@ package server
 import (
     "fmt"
     "strings"
+    "time"
+    "strconv"
 )
 
 func (s *Server)Del(cli *Client) error {
@@ -57,3 +59,35 @@ func (s *Server)Keys(cli *Client) error {
     return nil
 }
 
+
+func (s *Server) Expire(cli *Client) error {
+    if cli.argc != 3 {
+        cli.ErrorResponse(wrongArgs, "expire")
+        return nil
+    }
+
+    var resp  string
+    key := string(cli.argv[1])
+    expireTime, err := strconv.Atoi(string(cli.argv[2]))
+    if err != nil {
+        cli.ErrorResponse(wrongArgType)
+        return nil
+    }
+    expired := time.Now().Unix() * 1000 + int64(expireTime) * 1000
+    s.logf("expire time: %d, expired: %d", expireTime, expired)
+    db := s.db[cli.selectDb]
+    ele := db.LookupKey(key)
+    if ele == nil {
+        resp = zeroKey
+    } else {
+        val := NewElement(JON_INT64, expired)
+        db.SetExpire(key, val)
+        resp = oneKey
+    }
+    cli.Write(resp)
+    return nil
+}
+
+func (s *Server) Pexpire(cli *Client) error {
+    return nil
+}

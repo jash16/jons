@@ -33,4 +33,6 @@ func (s *Server) Register() {
     s.cmdMap["select"] = s.Select
     s.cmdMap["keys"] = s.Keys
     s.cmdMap["del"] = s.Del
+
+    s.cmdMap["expire"] = s.Expire
 }
