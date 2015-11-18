@@ -114,7 +114,7 @@ type JonDb struct {
     Blocks *DB
     Ready *DB
     Watch *DB
-    sync.Mutex
+    sync.RWMutex
 }
 
 func NewDB() *DB {
@@ -125,8 +125,8 @@ func NewDB() *DB {
 
 func (d *DB) Copy() *DB {
     d2 := NewDB()
-    d.RLock()
-    defer d.RUnlock()
+//    d.RLock()
+//    defer d.RUnlock()
     for key, ele := range d.DataMap {
         k := key
         e := ele.Copy()
@@ -147,8 +147,13 @@ func NewJonDb() *JonDb {
 
 func (d *JonDb) SetKey(K string, V *Element) {
     dict := d.Dict
-    dict.Lock()
-    defer dict.Unlock()
+//    dict.Lock()
+//    defer dict.Unlock()
+    dict.DataMap[K] = V
+}
+
+func (d *JonDb) SetExpire(K string, V *Element) {
+    dict := d.Expires
     dict.DataMap[K] = V
 }
 
@@ -157,8 +162,8 @@ func (d *JonDb) LookupKey(K string) *Element {
     var ele *Element
     var ok bool
     dict := d.Dict
-    dict.RLock()
-    defer dict.RUnlock()
+//    dict.RLock()
+//    defer dict.RUnlock()
     if ele, ok = dict.DataMap[K]; ok {
         return ele
     }
@@ -177,17 +182,17 @@ func (d *JonDb) DeleteKey(K string) bool {
     expdict := d.Expires
     dict := d.Dict
 
-    expdict.Lock()
+//    expdict.Lock()
     delete(expdict.DataMap, K)
-    expdict.Unlock()
+//    expdict.Unlock()
 
-    dict.Lock()
+//    dict.Lock()
     if _, ok := dict.DataMap[K]; !ok {
-        dict.Unlock()
+//        dict.Unlock()
         return false
     }
     delete(dict.DataMap, K)
-    dict.Unlock()
+//    dict.Unlock()
     return true
 }
 
@@ -196,32 +201,35 @@ func (d *JonDb) ExpireKey(K string) bool {
     var expire int64
     var ele *Element
     var ok bool
-    now := time.Now().Unix()
-    expdict.Lock()
+    now_time  := time.Now()
+    now_ms := int64(now_time.Nanosecond() / 100000)
+    now_ms += now_time.Unix() * 1000
+//    expdict.Lock()
     //defer expdict.Unlock()
     if ele, ok = expdict.DataMap[K]; !ok {
-        expdict.Unlock()
+        //expdict.Unlock()
         return false
     }
     expire = ele.Value.(int64)
-    if expire >= now {
-        expdict.Unlock()
+    println(expire, now_ms)
+    if expire >= now_ms {
+//        expdict.Unlock()
         return false
     }
     delete(expdict.DataMap, K)
-    expdict.Unlock()
+//    expdict.Unlock()
 
     dict := d.Dict
-    dict.Lock()
+//    dict.Lock()
     delete(dict.DataMap, K)
-    dict.Unlock()
+//    dict.Unlock()
     return true
 }
 
 func (d *JonDb) Keys() []string {
     dict := d.Dict
-    dict.Lock()
-    defer dict.Unlock()
+//    dict.Lock()
+//    defer dict.Unlock()
     var resp []string
     for k, _ := range (dict.DataMap) {
         resp = append(resp, k)
@@ -232,8 +240,8 @@ func (d *JonDb) Keys() []string {
 func (d *JonDb) Haskey(K string) bool {
     d.ExpireKey(K)
     dict := d.Dict
-    dict.Lock()
-    defer dict.Unlock()
+//    dict.Lock()
+//    defer dict.Unlock()
     if _, ok := dict.DataMap[K]; ok {
         return true
     }

@@ -1,7 +1,7 @@
 package server
 
 import (
-    "fmt"
+_    "fmt"
 )
 
 func (s *Server) Sadd(cli *Client) error {
@@ -10,7 +10,7 @@ func (s *Server) Sadd(cli *Client) error {
          return nil
     }
 
-    var resp string
+    //var resp string
 
     return nil
 }

@@ -8,6 +8,8 @@ var (
     wrongDbIdx string = "-ERR invalid DB index\r\n"
     wrongKey string = "$-1\r\n"
     wrongIdx string = "-ERR index out of range\r\n"
+    wrongSyntax string = "-ERR syntax error\r\n"
+    wrongArgType string = "-ERR value is not an integer or out of range\r\n"
     zeroKey string = ":0\r\n"
     oneKey string = ":1\r\n"
     twoKey string = ":2\r\n"

@@ -3,16 +3,57 @@ package server
 import (
     "strconv"
     "fmt"
+    "time"
 )
 
 func (s *Server) Set(cli *Client) error {
-    if (cli.argc != 3) {
+    if (cli.argc < 3) {
         cli.ErrorResponse(wrongArgs, "set")
         return nil
     }
+    var expireFlag bool
+    var existSetFlag bool
+    var noExistSetFlag bool
+    var expireTime int64 //unit ms
     key_str := string(cli.argv[1])
     val_str := string(cli.argv[2])
     s.logf("receive command: %s %s %s", cli.argv[0], cli.argv[1], cli.argv[2])
+    if cli.argc > 3 {
+        for i := 3; i < int(cli.argc); i ++ {
+            arg := string(cli.argv[i])
+            if arg == "nx" || arg == "NX" {
+                noExistSetFlag = true
+            } else if arg == "xx" || arg == "XX" {
+                existSetFlag = true
+            } else if arg == "px" || arg == "PX" { //ms
+                if i == int(cli.argc - 1) {
+                    cli.ErrorResponse(wrongSyntax)
+                    return nil
+                }
+                expTime, err := strconv.Atoi(string(cli.argv[i+1]))
+                if err != nil {
+                    cli.ErrorResponse(wrongArgType)
+                    return nil
+                }
+                i += 1
+                expireTime += int64(expTime)
+                expireFlag = true
+            } else if arg == "ex" || arg == "EX" {
+                if i == int(cli.argc - 1) {
+                    cli.ErrorResponse(wrongSyntax)
+                    return nil
+                }
+                expTime, err := strconv.Atoi(string(cli.argv[i+1]))
+                if err != nil {
+                    cli.ErrorResponse(wrongArgType)
+                    return nil
+                }
+                i += 1
+                expireTime += int64(expTime * 1000)
+                expireFlag = true
+            }
+        }
+    }
     K := key_str
     V := NewElement(JON_STRING, val_str)
     db := s.db[cli.selectDb]
@@ -21,7 +62,22 @@ func (s *Server) Set(cli *Client) error {
         cli.Write(wrongType)
         return nil
     }
+    if (typ == JON_KEY_NOTEXIST && existSetFlag) || (typ != JON_KEY_NOTEXIST && noExistSetFlag) {
+        cli.Write(zeroKey)
+        return nil
+    }
     db.SetKey(K, V)
+
+    if expireFlag == true {
+        t := expireTime
+        curTimes := time.Now()
+        curTimems := int64(curTimes.Nanosecond() / 100000)
+        expireTime += curTimes.Unix()*1000 + curTimems
+        s.logf("expireTime: %d(ms), expired time: %d, now time: %d", t, expireTime, curTimes.Unix()*1000 + curTimems)
+        exp := NewElement(JON_INT64, expireTime)
+        db.SetExpire(K, exp)
+    }
+
     cli.Write(ok)
     return nil
 }
