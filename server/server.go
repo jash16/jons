@@ -22,6 +22,9 @@ type Server struct {
 
     cmdMap map[string]cmdFunc
 
+    rdbFlag bool
+    rdbHandler *os.File
+
     wg common.WaitGroupWrapper
     sync.Mutex
     exitChan chan bool
@@ -33,6 +36,7 @@ func NewServer(opt *ServerOptions) *Server {
         Opts: opt,
         exitChan: make(chan bool),
         cmdMap: make(map[string]cmdFunc),
+        rdbFlag: false,
     }
 }
 
