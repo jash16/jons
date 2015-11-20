@@ -21,6 +21,9 @@ type Client struct {
     db *JonDb
     respBuf []byte
 
+    subChan chan string
+    subKeys []string
+
     exitChan chan bool
 }
 
@@ -29,8 +32,18 @@ func NewClient(conn net.Conn) *Client {
         conn: conn,
         reader: bufio.NewReader(conn),
         writer: bufio.NewWriter(conn),
+        subChan: make(chan string),
         selectDb: 0,
     }
+}
+
+func (c *Client) GetSubchan() <-chan string {
+    c.RLock()
+    defer c.RUnlock()
+    if c.subChan != nil {
+        return <-c.subChan
+    }
+    return nil
 }
 
 func (c *Client) Exit() {
@@ -38,7 +51,11 @@ func (c *Client) Exit() {
     if c.exitChan != nil {
         close(c.exitChan)
     }
+    if c.subChan != nil {
+        close(c.subChan)
+    }
     c.Unlock()
+
     c.Close()
 }
 

@@ -22,6 +22,10 @@ type Server struct {
 
     cmdMap map[string]cmdFunc
 
+    //for sub pub
+    subMap map[string][]*Client
+    subLock sync.Mutex
+
     rdbFlag bool
     rdbHandler *os.File
 
@@ -36,6 +40,7 @@ func NewServer(opt *ServerOptions) *Server {
         Opts: opt,
         exitChan: make(chan bool),
         cmdMap: make(map[string]cmdFunc),
+        subMap: make(map[string]*Client),
         rdbFlag: false,
     }
 }
@@ -84,6 +89,25 @@ func (s *Server) expireLoop() {
         case <- ticker.C:
         }
     }
+}
+
+func (s *Server) AddSubClient(subkey string, cli *Client) {
+    s.subLock.Lock()
+    defer s.subLock.Unlock()
+    var clis []*Client
+    if clis, ok := s.subMap[subkey]; ! ok {
+        clis = append(clis, cli)
+        s.subMap[subkey] = clis
+    } else {
+        for _, c := range clis {
+            if c == cli {
+                return
+            }
+        }
+        clis = append(clis, cli)
+        s.subMap[subKey] = cls
+    }
+    return
 }
 
 func (s *Server) Exit() {
