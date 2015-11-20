@@ -14,6 +14,7 @@ func (s *Server) Hset(cli *Client) error {
     val_key := string(cli.argv[2])
     val_val := string(cli.argv[3])
     db := s.db[cli.selectDb]
+    db.Lock()
     ele := db.LookupKey(key_str)
     if ele == nil {
         val := make(map[string]string)
@@ -34,6 +35,7 @@ func (s *Server) Hset(cli *Client) error {
         ele.Value = val
         db.SetKey(key_str, ele)
     }
+    db.Unlock()
     cli.Write(resp)
     return nil
 }
@@ -47,6 +49,7 @@ func (s *Server) Hget(cli *Client) error {
     key_str := string(cli.argv[1])
     val_key := string(cli.argv[2])
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key_str)
     if ele == nil {
         resp = wrongKey
@@ -61,6 +64,7 @@ func (s *Server) Hget(cli *Client) error {
             resp = wrongKey
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -73,6 +77,7 @@ func (s *Server) Hgetall(cli *Client) error {
     var resp string
     key := string(cli.argv[1])
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key)
     if ele == nil {
         resp = zeroLine
@@ -85,6 +90,7 @@ func (s *Server) Hgetall(cli *Client) error {
             resp = fmt.Sprintf("%s$%d\r\n%s\r\n$%d\r\n%s\r\n", resp, len(k), k, len(f), f)
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -96,6 +102,7 @@ func (s *Server) Hkeys(cli *Client) error {
     }
     var resp string
     db := s.db[cli.selectDb]
+    db.RLock()
     key := string(cli.argv[1])
     ele := db.LookupKey(key)
     if ele == nil {
@@ -109,6 +116,7 @@ func (s *Server) Hkeys(cli *Client) error {
             resp = fmt.Sprintf("%s$%d\r\n%s\r\n", resp, len(k), k)
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -120,6 +128,7 @@ func (s *Server) Hvals(cli *Client) error {
     }
     var resp string
     db := s.db[cli.selectDb]
+    db.RLock()
     key := string(cli.argv[1])
     ele := db.LookupKey(key)
     if ele == nil {
@@ -133,6 +142,7 @@ func (s *Server) Hvals(cli *Client) error {
             resp = fmt.Sprintf("%s$%d\r\n%s\r\n", resp, len(v), v)
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -145,6 +155,7 @@ func (s *Server) Hlen(cli *Client) error {
     }
     key_str := string(cli.argv[1])
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key_str)
     if ele == nil {
         resp = zeroKey
@@ -155,6 +166,7 @@ func (s *Server) Hlen(cli *Client) error {
         length := len(val)
         resp = fmt.Sprintf(":%d\r\n", length)
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -166,6 +178,7 @@ func (s *Server) Hdel(cli *Client) error {
     }
     var resp string
     db := s.db[cli.selectDb]
+    db.Lock()
     key := string(cli.argv[1])
     ele := db.LookupKey(key)
     if ele == nil {
@@ -189,6 +202,7 @@ func (s *Server) Hdel(cli *Client) error {
         }
         resp = fmt.Sprintf(":%d\r\n", delNum)
     }
+    db.Unlock()
     cli.Write(resp)
     return nil
 }
@@ -202,6 +216,7 @@ func (s *Server) Hexists(cli *Client) error {
     key := string(cli.argv[1])
     field := string(cli.argv[2])
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key)
     if ele == nil {
         resp = zeroKey
@@ -215,6 +230,7 @@ func (s *Server) Hexists(cli *Client) error {
             resp = zeroKey
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -227,6 +243,7 @@ func (s *Server) Hmset(cli *Client) error {
     var resp string
     key := string(cli.argv[1])
     db := s.db[cli.selectDb]
+    db.Lock()
     ele := db.LookupKey(key)
     if ele == nil {
         val := make(map[string]string)
@@ -251,6 +268,7 @@ func (s *Server) Hmset(cli *Client) error {
         db.SetKey(key, ele)
         resp = ok
     }
+    db.Unlock()
     cli.Write(resp)
     return nil
 }
@@ -263,6 +281,7 @@ func (s *Server) Hmget(cli *Client) error {
     var resp string
     key := string(cli.argv[1])
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key)
     if ele == nil {
         resp = fmt.Sprintf("*1\r\n$-1\r\n")
@@ -280,6 +299,7 @@ func (s *Server) Hmget(cli *Client) error {
             }
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }

@@ -7,6 +7,7 @@ import (
 
 func (s *Server)Lpush(cli *Client) error {
     var val [][]byte
+    var resp string
     if cli.argc <= 2 {
         cli.ErrorResponse(wrongArgs, "lpush")
         return nil
@@ -14,6 +15,7 @@ func (s *Server)Lpush(cli *Client) error {
     key_str := string(cli.argv[1])
 
     db := s.db[cli.selectDb]
+    db.Lock()
     old_ele := db.LookupKey(key_str)
     if old_ele == nil {
         for i := 2; i < int(cli.argc); i ++ {
@@ -22,10 +24,11 @@ func (s *Server)Lpush(cli *Client) error {
 
         ele := NewElement(JON_LIST, val)
         db.SetKey(key_str, ele)
-        resp := fmt.Sprintf(":%d\r\n", len(val))
-        cli.Write(resp)
+        resp = fmt.Sprintf(":%d\r\n", len(val))
+        //cli.Write(resp)
     } else if old_ele.Type != JON_LIST {
-        cli.Write(wrongType)
+        resp = wrongType
+        //cli.Write(wrongType)
     } else {
         val_old := old_ele.Value.([][]byte)
         for i := 2; i < int(cli.argc); i ++ {
@@ -35,9 +38,11 @@ func (s *Server)Lpush(cli *Client) error {
         length := len(val_old)
         old_ele.Value = val_old
         db.SetKey(key_str, old_ele)
-        resp := fmt.Sprintf(":%d\r\n", length)
-        cli.Write(resp)
+        resp = fmt.Sprintf(":%d\r\n", length)
+        //cli.Write(resp)
     }
+    db.Unlock()
+    cli.Write(resp)
     return nil
 }
 
@@ -46,7 +51,7 @@ func (s *Server) Lrange(cli *Client) error {
         cli.ErrorResponse(wrongArgs, "lrange")
         return nil
     }
-
+    var resp string
     key := string(cli.argv[1])
     start, err := strconv.Atoi(string(cli.argv[2]))
     if err != nil {
@@ -60,12 +65,12 @@ func (s *Server) Lrange(cli *Client) error {
     }
 
     db := s.db[cli.selectDb]
+    db.RLock()
     ele := db.LookupKey(key)
     if ele == nil {
-        resp := fmt.Sprintf("*0\r\n")
-        cli.Write(resp)
+        resp = zeroLine
     } else if ele.Type != JON_LIST {
-        cli.Write(wrongType)
+        resp = wrongType
     } else {
         val := ele.Value.([][]byte)
         val_num := len(val)
@@ -80,17 +85,18 @@ func (s *Server) Lrange(cli *Client) error {
             start += val_num
         }
         if start > end {
-            cli.Write("*0\r\n")
+            resp = zeroLine
         } else {
             send_val_num := end - start + 1
-            resp := fmt.Sprintf("*%d\r\n", send_val_num)
+            resp = fmt.Sprintf("*%d\r\n", send_val_num)
             for i := start; i <= end; i ++ {
                 cur_val := val[i]
                 cur_len := len(cur_val)
                 resp = fmt.Sprintf("%s$%d\r\n%s\r\n", resp, cur_len, cur_val)
             }
-            cli.Write(resp)
         }
     }
+    db.RUnlock()
+    cli.Write(resp)
     return nil
 }

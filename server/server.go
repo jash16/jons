@@ -83,9 +83,11 @@ func (s *Server) expireLoop() {
 }
 
 func (s *Server) Exit() {
+    s.Lock()
     if s.tcpListener != nil {
         s.tcpListener.Close()
     }
+    s.Unlock()
     close(s.exitChan)
     s.wg.Wait()
 }

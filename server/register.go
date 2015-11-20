@@ -35,4 +35,5 @@ func (s *Server) Register() {
     s.cmdMap["del"] = s.Del
 
     s.cmdMap["expire"] = s.Expire
+    s.cmdMap["pexpire"] = s.Pexpire
 }

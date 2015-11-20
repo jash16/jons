@@ -15,6 +15,7 @@ func (s *Server) Set(cli *Client) error {
     var existSetFlag bool
     var noExistSetFlag bool
     var expireTime int64 //unit ms
+    var resp string
     key_str := string(cli.argv[1])
     val_str := string(cli.argv[2])
     s.logf("receive command: %s %s %s", cli.argv[0], cli.argv[1], cli.argv[2])
@@ -57,28 +58,28 @@ func (s *Server) Set(cli *Client) error {
     K := key_str
     V := NewElement(JON_STRING, val_str)
     db := s.db[cli.selectDb]
+    db.Lock()
     typ := db.LookupKeyType(K)
     if typ != JON_KEY_NOTEXIST && typ != JON_STRING {
-        cli.Write(wrongType)
-        return nil
-    }
-    if (typ == JON_KEY_NOTEXIST && existSetFlag) || (typ != JON_KEY_NOTEXIST && noExistSetFlag) {
-        cli.Write(zeroKey)
-        return nil
-    }
-    db.SetKey(K, V)
+        resp = wrongType
+    } else if (typ == JON_KEY_NOTEXIST && existSetFlag) || (typ != JON_KEY_NOTEXIST && noExistSetFlag) {
+        resp = zeroKey
+    } else {
+        db.SetKey(K, V)
 
-    if expireFlag == true {
-        t := expireTime
-        curTimes := time.Now()
-        curTimems := int64(curTimes.Nanosecond() / 100000)
-        expireTime += curTimes.Unix()*1000 + curTimems
-        s.logf("expireTime: %d(ms), expired time: %d, now time: %d", t, expireTime, curTimes.Unix()*1000 + curTimems)
-        exp := NewElement(JON_INT64, expireTime)
-        db.SetExpire(K, exp)
+        if expireFlag == true {
+            t := expireTime
+            curTimes := time.Now()
+            curTimems := int64(curTimes.Nanosecond() / 100000)
+            expireTime += curTimes.Unix()*1000 + curTimems
+            s.logf("expireTime: %d(ms), expired time: %d, now time: %d", t, expireTime, curTimes.Unix()*1000 + curTimems)
+            exp := NewElement(JON_INT64, expireTime)
+            db.SetExpire(K, exp)
+        }
+        resp = ok
     }
-
-    cli.Write(ok)
+    db.Unlock()
+    cli.Write(resp)
     return nil
 }
 
@@ -107,21 +108,22 @@ func (s *Server) Get(cli *Client) error {
          cli.ErrorResponse(wrongArgs, "get")
          return nil
      }
+     var resp string
      key := string(cli.argv[1])
      db := s.db[cli.selectDb]
+     db.RLock()
      val = db.LookupKey(key)
      if val == nil {
-         cli.Write(wrongKey)
-         return nil
+         resp = wrongKey
+     } else if val.Type != JON_STRING {
+         resp = wrongType
+     } else {
+         valStr, _ := val.Value.(string)
+         valLen := len(valStr)
+         resp = fmt.Sprintf("$%d\r\n%s\r\n", valLen, valStr)
      }
-     if val.Type != JON_STRING {
-         cli.Write(wrongType)
-         return nil
-     }
-     valStr, _ := val.Value.(string)
-     valLen := len(valStr)
-     respStr := fmt.Sprintf("$%d\r\n%s\r\n", valLen, valStr)
-     cli.Write(respStr)
+     db.RUnlock()
+     cli.Write(resp)
      return nil
 }
 
@@ -132,6 +134,7 @@ func (s *Server)Mget(cli *Client) error {
     }
     db := s.db[cli.selectDb]
 
+    db.RLock()
     var resp string
     resp += fmt.Sprintf("*%d\r\n", cli.argc - 1)
     for i := 1; i < int(cli.argc); i ++ {
@@ -146,6 +149,7 @@ func (s *Server)Mget(cli *Client) error {
             resp += fmt.Sprintf("%s\r\n", valStr)
         }
     }
+    db.RUnlock()
     cli.Write(resp)
     return nil
 }
@@ -157,12 +161,14 @@ func (s *Server)Mset(cli *Client) error {
     }
 
     db := s.db[cli.selectDb]
+    db.Lock()
     for i := 1; i < int(cli.argc); i += 2 {
         key_str := string(cli.argv[i])
         val_str := string(cli.argv[i+1])
         val := NewElement(JON_STRING, val_str)
         db.SetKey(key_str, val)
     }
+    db.Unlock()
     cli.Write(ok)
     return nil
 }
@@ -197,22 +203,28 @@ func (s *Server) Getset(cli *Client) error {
         cli.ErrorResponse(wrongArgs, "getset")
         return nil
     }
+    var resp string
     key_str := string(cli.argv[1])
     val_str := string(cli.argv[2])
     db := s.db[cli.selectDb]
+    db.Lock()
     ele := db.LookupKey(key_str)
     val := NewElement(JON_STRING, val_str)
     if ele == nil {
         db.SetKey(key_str, val)
-        cli.Write(wrongKey)
+        resp = wrongKey
+        //cli.Write(wrongKey)
     } else if ele.Type != JON_STRING {
-        cli.Write(wrongType)
+        resp = wrongType
+        //cli.Write(wrongType)
     } else {
         db.SetKey(key_str, val)
         val_str := val.Value.(string)
-        resp := fmt.Sprintf("$%d\r\n%s\r\n", len(val_str), val_str)
-        cli.Write(resp)
+        resp = fmt.Sprintf("$%d\r\n%s\r\n", len(val_str), val_str)
+        //cli.Write(resp)
     }
+    db.Unlock()
+    cli.Write(resp)
     return nil
 }
 
@@ -233,19 +245,24 @@ func (s *Server) Strlen(cli *Client) error {
         cli.ErrorResponse(wrongArgs, "strlen")
         return nil
     }
+    var resp string
     db := s.db[cli.selectDb]
+    db.RLock()
     key_str := string(cli.argv[1])
     ele := db.LookupKey(key_str)
     if ele == nil {
-        cli.Write(zeroKey)
-        return nil
+        //cli.Write(zeroKey)
+        resp = zeroKey
     } else if ele.Type != JON_STRING {
-        cli.Write(wrongType)
-        return nil
+        //cli.Write(wrongType)
+        resp = wrongType
+    } else {
+        val_str := ele.Value.(string)
+        length := len(val_str)
+        resp = fmt.Sprintf(":%d\r\n", length)
     }
-    val_str := ele.Value.(string)
-    length := len(val_str)
-    resp := fmt.Sprintf(":%d\r\n", length)
+    db.RUnlock()
+
     cli.Write(resp)
     return nil
 }

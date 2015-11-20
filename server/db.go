@@ -125,8 +125,6 @@ func NewDB() *DB {
 
 func (d *DB) Copy() *DB {
     d2 := NewDB()
-//    d.RLock()
-//    defer d.RUnlock()
     for key, ele := range d.DataMap {
         k := key
         e := ele.Copy()
