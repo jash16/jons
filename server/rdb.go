@@ -6,13 +6,8 @@ import (
     "os"
 )
 
-type Persist interface {
-    Save(db []*JonDb) error
-    Load(file string) (db []*JonDb, error)
-}
-
 type rdb struct {
-
+    rdbHandler *os.File
 }
 
 const (
@@ -28,33 +23,39 @@ func (r *rdb) Save(db []*JonDb) error {
     nowms := now.Unix() * 1000 + int64(now.Nanosecond() / 100000)
 
     fname := fmt.Sprintf("temp-%d.rdb", os.Getpid())
-    f, err := os.Open(fname)
+    //f, err := os.OpenFile(fname, os.O_WRONLY, 0666)
+    f, err := os.Create(fname)
     if err != nil {
-        s.logf("open %s failed - %s", fname, err)
-        return error
+        fmt.Printf("open file: %s - %s", fname, err)
+        return err
     }
-    s.rdbHandler = f
-    magic := fmt.Sprintf("REDIS%4d", REDIS_RDB_VERSION)
-    s.rdbHandler.Write(magic)
+    r.rdbHandler = f
+    magic := fmt.Sprintf("REDIS%04d", REDIS_RDB_VERSION)
+    r.rdbHandler.Write([]byte(magic))
     for i, d := range db {
+        r.saveLen(i)
         for key, val := range d.Dict.DataMap {
-            expTime := -1
+            expTime := int64(-1)
             if exp, ok := d.Expires.DataMap[key]; ok {
-                 expTime := exp.Value.(int64)
+                 expTime = exp.Value.(int64)
             }
-            s.RdbSaveKeyValPair(key, val, expTime, nowms)
+            r.saveKeyValPair(key, val, expTime, nowms)
         }
     }
+    os.Rename(fname, "dump.rdb")
     return nil
 }
 
-func (s *Server) RdbSaveKeyValPair(key string, val *Element, expTime int64, nowTime int64) {
+func (r *rdb) saveKeyValPair(key string, val *Element, expTime int64, nowTime int64) {
     if expTime != -1 {
         if expTime >= nowTime {
             return
         }
-
     }
+}
+
+func (r *rdb) saveLen(val int) {
+
 }
 
 func (r *rdb) Load(file string) ([]*JonDb, error) {

@@ -48,26 +48,50 @@ func (p *JonProtocol)IOLoop(conn net.Conn) error {
             goto end
         }
         if len(line) <= 3 || line[0] != '*' {
-            io.ReadFull(r, dump)
-            client.ErrorResponse(wrongCommand, line)
+            _, err = io.ReadFull(r, dump)
+            if err != nil {
+                goto end
+            }
+            err = client.ErrorResponse(wrongCommand, line)
+            if err != nil {
+                goto end
+            }
             continue
         }
         cmdNum, err = strconv.Atoi(string(line[1:len(line)-2]))
         if err != nil {
-            io.ReadFull(r, dump)
-            client.ErrorResponse(wrongCommand, line)
+            _, err = io.ReadFull(r, dump)
+            if err != nil {
+                goto end
+            }
+            err = client.ErrorResponse(wrongCommand, line)
+            if err != nil {
+                goto end
+            }
             continue
         }
         for i := 0; i < cmdNum; i ++ {
             line, err = r.ReadSlice('\n')
             if err != nil {
-                io.ReadFull(r, dump)
-                client.ErrorResponse(wrongCommand, line)
+                _, err = io.ReadFull(r, dump)
+                if err != nil {
+                    goto end
+                }
+                err = client.ErrorResponse(wrongCommand, line)
+                if err != nil {
+                    goto end
+                }
                 break
             }
             if len(line) < 4 || line[0] != '$' {
-                io.ReadFull(r, dump)
-                client.ErrorResponse(wrongCommand, line)
+                _, err = io.ReadFull(r, dump)
+                if err != nil {
+                    goto end
+                }
+                err = client.ErrorResponse(wrongCommand, line)
+                if err != nil {
+                    goto end
+                }
                 break
             }
             nextNum, err = strconv.Atoi(string(line[1:len(line)-2]))
@@ -75,21 +99,38 @@ func (p *JonProtocol)IOLoop(conn net.Conn) error {
                 goto ERR
             }
             cmd = make([]byte, nextNum+2)
-            io.ReadFull(r, cmd)
+            _, err = io.ReadFull(r, cmd)
+            if err != nil {
+                goto end
+            }
             client.argv = append(client.argv, cmd[0:len(cmd)-2])
             client.argc ++;
         }
         err = p.processCommand(client)
         if err != nil {
-            goto ERR
+            goto end
         } else {
             continue
         }
 ERR:
-        io.ReadFull(r, dump)
-        client.ErrorResponse(wrongCommand, line)
+        _, err = io.ReadFull(r, dump)
+        if err != nil {
+            goto end
+        }
+        err = client.ErrorResponse(wrongCommand, line)
+        if err != nil {
+            goto end
+        }
     }
 end:
+    for _, key := range client.subKeys {
+        println(key)
+        subexit := subExit {
+            key: key,
+            cli: client,
+        }
+        p.ctx.s.subExitChan <- subexit
+    }
     client.Exit()
     return err
 }
@@ -101,7 +142,7 @@ func (p *JonProtocol) processCommand(cli *Client) error {
     if cmdFunc, ok := p.ctx.s.cmdMap[cmd] ; ok {
         err = cmdFunc(cli)
     } else {
-        cli.ErrorResponse(wrongCommand, cli.argv[0])
+        err = cli.ErrorResponse(wrongCommand, cli.argv[0])
     }
     return err
 }

@@ -21,7 +21,7 @@ type Client struct {
     db *JonDb
     respBuf []byte
 
-    subChan chan string
+    subChan chan Pub
     subKeys []string
 
     exitChan chan bool
@@ -32,27 +32,34 @@ func NewClient(conn net.Conn) *Client {
         conn: conn,
         reader: bufio.NewReader(conn),
         writer: bufio.NewWriter(conn),
-        subChan: make(chan string),
+        subChan: make(chan Pub, 1000),
         selectDb: 0,
     }
 }
 
-func (c *Client) GetSubchan() <-chan string {
-    c.RLock()
-    defer c.RUnlock()
-    if c.subChan != nil {
-        return <-c.subChan
-    }
-    return nil
+func (c *Client) String() string {
+    return c.conn.RemoteAddr().String()
 }
-
 func (c *Client) Exit() {
     c.Lock()
+    if c.subChan != nil {
+        doneFlag := false
+        for {
+            select{
+            case <- c.subChan:
+            default:
+                doneFlag = true
+            }
+            if doneFlag == true {
+                break
+            }
+        }
+        close(c.subChan)
+        c.subChan = nil
+    }
+
     if c.exitChan != nil {
         close(c.exitChan)
-    }
-    if c.subChan != nil {
-        close(c.subChan)
     }
     c.Unlock()
 
@@ -63,13 +70,27 @@ func (c *Client) Close() {
     c.conn.Close()
 }
 
-func (c *Client) Write(data string) {
-    c.writer.Write([]byte(data))
-    c.writer.Flush()
+func (c *Client) Write(data string) error {
+    _, err := c.writer.Write([]byte(data))
+    if err != nil {
+        return err
+    }
+    err = c.writer.Flush()
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
-func (c *Client) ErrorResponse(f string, args...interface{}) {
+func (c *Client) ErrorResponse(f string, args...interface{}) error {
     resp := fmt.Sprintf(f, args...)
-    c.writer.Write([]byte(resp))
-    c.writer.Flush()
+    _, err := c.writer.Write([]byte(resp))
+    if err != nil {
+        return err
+    }
+    err = c.writer.Flush()
+    if err != nil {
+        return err
+    }
+    return nil
 }

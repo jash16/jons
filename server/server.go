@@ -24,11 +24,13 @@ type Server struct {
 
     //for sub pub
     subMap map[string][]*Client
-    subLock sync.Mutex
+    subLock sync.RWMutex
+    subExitChan chan subExit
 
     rdbFlag bool
     rdbHandler *os.File
-
+    //persist
+    p Persist
     wg common.WaitGroupWrapper
     sync.Mutex
     exitChan chan bool
@@ -40,7 +42,9 @@ func NewServer(opt *ServerOptions) *Server {
         Opts: opt,
         exitChan: make(chan bool),
         cmdMap: make(map[string]cmdFunc),
-        subMap: make(map[string]*Client),
+        subMap: make(map[string][]*Client),
+        subExitChan: make(chan subExit),
+        p: &rdb{},
         rdbFlag: false,
     }
 }
@@ -70,6 +74,9 @@ func (s *Server) Main() {
     s.wg.Wrap(func() {
         protocol.TCPServer(s.tcpListener, tcpSrv, s.logger)
     })
+    s.wg.Wrap(func() {
+        s.pubsubLoop()
+    })
 }
 
 func (s *Server) logf(data string, args...interface{}) {
@@ -91,10 +98,35 @@ func (s *Server) expireLoop() {
     }
 }
 
+func (s *Server) pubsubLoop() {
+    //var clis []*Client
+    var nclis []*Client
+    for {
+        select {
+        case subExitCli := <- s.subExitChan:
+            key := subExitCli.key
+            cli := subExitCli.cli
+            s.logf("subscribe client: %s quit", cli)
+            s.subLock.Lock()
+            if clis, ok := s.subMap[key]; ! ok {
+                continue
+            } else {
+                for _, c := range clis {
+                    if c != cli {
+                        nclis = append(nclis, c)
+                    }
+                }
+                s.subMap[key] = nclis
+            }
+            s.subLock.Unlock()
+        }
+    }
+}
+
 func (s *Server) AddSubClient(subkey string, cli *Client) {
     s.subLock.Lock()
     defer s.subLock.Unlock()
-    var clis []*Client
+    //var clis []*Client
     if clis, ok := s.subMap[subkey]; ! ok {
         clis = append(clis, cli)
         s.subMap[subkey] = clis
@@ -105,7 +137,7 @@ func (s *Server) AddSubClient(subkey string, cli *Client) {
             }
         }
         clis = append(clis, cli)
-        s.subMap[subKey] = cls
+        s.subMap[subkey] = clis
     }
     return
 }
