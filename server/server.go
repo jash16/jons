@@ -76,6 +76,8 @@ func (s *Server) Main() {
     }
     s.p = p
 
+    s.initRdb()
+
     s.wg.Wrap(func() {
         protocol.TCPServer(s.tcpListener, tcpSrv, s.logger)
     })
@@ -88,8 +90,12 @@ func (s *Server) logf(data string, args...interface{}) {
     s.logger.Output(2, fmt.Sprintf(data, args...))
 }
 
-func (s *Server) initRdb() {
-
+func (s *Server) initRdb() error {
+    err := s.p.Load("dump.rdb")
+    if err != nil {
+        s.logf("load dump.rdb failed - %s", err)
+    }
+    return err
 }
 
 func (s *Server) expireLoop() {

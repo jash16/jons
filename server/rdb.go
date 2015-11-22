@@ -117,6 +117,7 @@ func (r *rdb) saveMillisecondTime(exp int64) error {
 func (r *rdb) saveLen(val int) error {
     var err error
     buf := new(bytes.Buffer)
+    //println(val)
     if val < (1 << 6) {
         var val8 uint8
         val8 = uint8(val & 0xFF)
@@ -202,6 +203,7 @@ func (r *rdb) saveVal(val *Element) error {
        var num int
        valMap = val.Value.(map[string]string)
        num = len(valMap)
+       println("maplen: ", num)
        if err = r.saveLen(num); err != nil {
            return err
        }
@@ -223,7 +225,7 @@ func (r *rdb) Load(file string)(error) {
 
     var now int64
     var err error
-    var expTime int64
+    var expTime int64 = -1
     var dbidx int
     var db *JonDb
     var key string
@@ -231,7 +233,7 @@ func (r *rdb) Load(file string)(error) {
 
     now = time.Now().Unix() * 1000 + int64(time.Now().Nanosecond()/100000)
 
-    dbs := r.ctx.s.db
+    //dbs := r.ctx.s.db
 
     if f, err := os.Open(file); err != nil {
         return err
@@ -255,13 +257,16 @@ func (r *rdb) Load(file string)(error) {
     var typ uint8
     for {
         if typ, err = r.loadType(); err != nil {
+            fmt.Printf("load type error: %s\n", err)
             return err
         }
         if typ == REDIS_RDB_OPCODE_EXPIRETIME_MS {
             if expTime, err = r.loadInt64(); err != nil {
+                fmt.Printf("load int64  error: %s\n", err)
                 return err
             }
             if typ, err = r.loadType(); err != nil {
+                fmt.Printf("load type error: %s\n", err)
                 return err
             }
         }
@@ -271,19 +276,22 @@ func (r *rdb) Load(file string)(error) {
         }
         if typ == REDIS_RDB_OPCODE_SELECTDB {
             if dbidx, err = r.loadLen(); err != nil {
+                fmt.Printf("load dbidx error: %s\n", err)
                 return err
             }
             if dbidx > r.ctx.s.Opts.DbNum {
                 r.ctx.s.logf("load db index : %d bigger than db numer: %d", dbidx, r.ctx.s.Opts.DbNum)
                 os.Exit(1)
             }
-            db = dbs[dbidx]
+            println(dbidx)
+            db = r.ctx.s.db[dbidx]
             continue
         }
         if key, err = r.loadKey(); err != nil {
             return err
         }
         if val, err = r.loadVal(typ); err != nil {
+            fmt.Printf("load val - %s\n", err)
             return err
         }
         if expTime != -1 && expTime < now {
@@ -307,6 +315,7 @@ func (r *rdb) loadType() (uint8, error) {
     buf := bytes.NewReader(data)
     err = binary.Read(buf, binary.BigEndian, &typ)
     if err != nil {
+        fmt.Printf("binary read error: %s\n", err)
         return uint8(0), err
     }
     return typ, nil
@@ -335,12 +344,16 @@ func (r *rdb) loadLen() (int, error) {
     if typ, err = r.loadType(); err != nil {
         return 0, err
     }
-    if typ == REDIS_RDB_6BITLEN {
-        return int(typ & 0x3F), nil
-    } else if typ == REDIS_RDB_14BITLEN {
+    t := (typ & 0xC0) >> 6
+    if t == REDIS_RDB_6BITLEN {
+        return int(typ & 0x0000003F), nil
+    } else if t == REDIS_RDB_14BITLEN {
+        println(2222222222)
         if typ2, err = r.loadType(); err != nil {
+            fmt.Printf("load tpe error: %s\n", err)
             return 0, err
         }
+        println(int(((typ & 0x3F)<<8) | typ2))
         return int(((typ & 0x3F)<<8) | typ2), nil
     } else {
         var data []byte
@@ -350,6 +363,7 @@ func (r *rdb) loadLen() (int, error) {
         buf := bytes.NewReader(data)
         err = binary.Read(buf, binary.BigEndian, &length)
         if err != nil {
+            fmt.Printf("binary read error %s\n", err)
             return 0, err
         }
         return int(length), nil
@@ -397,18 +411,23 @@ func (r *rdb) loadVal(typ uint8) (*Element, error) {
         }
         return NewElement(JON_LIST, vals), nil
     case REDIS_RDB_TYPE_HASH:
+        println("hash")
         var num int
         var key, val string
         var dataMap map[string]string
         dataMap = make(map[string]string)
         if num, err = r.loadLen(); err != nil {
+            fmt.Printf("load map len: %s\n", err)
             return nil, err
         }
+        println("num:", num)
         for i := 0; i < num; i ++ {
             if key, err = r.loadStr(); err != nil {
+                fmt.Printf("load map key %s\n", err)
                 return nil, err
             }
             if val, err = r.loadStr(); err != nil {
+                fmt.Printf("load map val %s\n", err)
                 return nil, err
             }
             dataMap[key] = val
@@ -423,7 +442,7 @@ func (r *rdb) loadVal(typ uint8) (*Element, error) {
 }
 
 func (r *rdb) readLen(length int) ([]byte, error) {
-    buf := make([]byte, 9)
+    buf := make([]byte, length)
     if _, err := io.ReadFull(r.rdbHandler, buf); err != nil {
         return nil, err
     }

@@ -61,6 +61,9 @@ func NewElement(typ int32, value interface{}) *Element {
 
 func (e *Element) Copy() *Element {
     var val2 interface{}
+    if e == nil {
+        return nil
+    }
     switch e.Value.(type) {
     case string:
         val2 = e.Value
