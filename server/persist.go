@@ -2,7 +2,7 @@ package server
 
 type Persist interface {
     Save(db []*JonDb) error
-    Load(file string) (db []*JonDb, err error)
+    Load(file string) error
 }
 
 func (s *Server)Bgsave(cli *Client) error {

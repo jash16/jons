@@ -3,7 +3,9 @@ package server
 import (
     "time"
     "fmt"
+    "io"
     "os"
+    "strconv"
     "encoding/binary"
     "bytes"
 )
@@ -75,6 +77,7 @@ func (r *rdb) Save(db []*JonDb) error {
     if err = r.saveType(REDIS_RDB_OPCODE_EOF); err != nil {
         goto ERROR
     }
+    r.rdbHandler.Close()
     os.Rename(fname, "dump.rdb")
     return nil
 ERROR:
@@ -183,7 +186,12 @@ func (r *rdb) saveVal(val *Element) error {
         return r.saveStr(valStr)
     case JON_LIST:
         var vals [][]byte
+        var num int
         vals = val.Value.([][]byte)
+        num = len(vals)
+        if err = r.saveLen(num); err != nil {
+            return err
+        }
         for _, valByte := range vals {
             if err = r.saveStr(string(valByte)); err != nil {
                 return err
@@ -191,7 +199,12 @@ func (r *rdb) saveVal(val *Element) error {
         }
     case JON_HASH:
        var valMap map[string]string
+       var num int
        valMap = val.Value.(map[string]string)
+       num = len(valMap)
+       if err = r.saveLen(num); err != nil {
+           return err
+       }
        for k, v := range valMap {
            if err = r.saveStr(k); err != nil {
                return err
@@ -206,6 +219,213 @@ func (r *rdb) saveVal(val *Element) error {
     return err
 }
 
-func (r *rdb) Load(file string) ([]*JonDb, error) {
+func (r *rdb) Load(file string)(error) {
+
+    var now int64
+    var err error
+    var expTime int64
+    var dbidx int
+    var db *JonDb
+    var key string
+    var val *Element
+
+    now = time.Now().Unix() * 1000 + int64(time.Now().Nanosecond()/100000)
+
+    dbs := r.ctx.s.db
+
+    if f, err := os.Open(file); err != nil {
+        return err
+    } else {
+        r.rdbHandler = f
+    }
+    var magic []byte
+    if magic, err = r.readLen(9); err != nil {
+        return err
+    }
+    if string(magic[0:5]) != "REDIS" {
+        return fmt.Errorf("not redis rdb file")
+    }
+    var ver int
+    if ver, err = strconv.Atoi(string(magic[5:9])); err != nil {
+        return err
+    }
+    if uint8(ver) != REDIS_RDB_VERSION {
+        return fmt.Errorf("rdb file version wrong")
+    }
+    var typ uint8
+    for {
+        if typ, err = r.loadType(); err != nil {
+            return err
+        }
+        if typ == REDIS_RDB_OPCODE_EXPIRETIME_MS {
+            if expTime, err = r.loadInt64(); err != nil {
+                return err
+            }
+            if typ, err = r.loadType(); err != nil {
+                return err
+            }
+        }
+
+        if typ == REDIS_RDB_OPCODE_EOF {
+            break
+        }
+        if typ == REDIS_RDB_OPCODE_SELECTDB {
+            if dbidx, err = r.loadLen(); err != nil {
+                return err
+            }
+            if dbidx > r.ctx.s.Opts.DbNum {
+                r.ctx.s.logf("load db index : %d bigger than db numer: %d", dbidx, r.ctx.s.Opts.DbNum)
+                os.Exit(1)
+            }
+            db = dbs[dbidx]
+            continue
+        }
+        if key, err = r.loadKey(); err != nil {
+            return err
+        }
+        if val, err = r.loadVal(typ); err != nil {
+            return err
+        }
+        if expTime != -1 && expTime < now {
+            continue
+        }
+        db.SetKey(key, val)
+        if expTime != -1 {
+            ev := NewElement(JON_INT64, expTime)
+            db.SetExpire(key, ev)
+        }
+    }
+    return nil
+}
+
+func (r *rdb) loadType() (uint8, error) {
+    var typ uint8
+    data, err := r.readLen(1)
+    if err != nil {
+        return uint8(0), err
+    }
+    buf := bytes.NewReader(data)
+    err = binary.Read(buf, binary.BigEndian, &typ)
+    if err != nil {
+        return uint8(0), err
+    }
+    return typ, nil
+}
+
+func (r *rdb) loadInt64() (int64, error) {
+    var val64 int64
+    var data []byte
+    var err error
+    if data, err = r.readLen(8); err != nil {
+        return int64(0), err
+    }
+    buf := bytes.NewReader(data)
+    err = binary.Read(buf, binary.BigEndian, &val64)
+    if err != nil {
+        return int64(0), err
+    }
+    return val64, nil
+}
+
+func (r *rdb) loadLen() (int, error) {
+    var err error
+    var typ uint8
+    var typ2 uint8
+    var length int32
+    if typ, err = r.loadType(); err != nil {
+        return 0, err
+    }
+    if typ == REDIS_RDB_6BITLEN {
+        return int(typ & 0x3F), nil
+    } else if typ == REDIS_RDB_14BITLEN {
+        if typ2, err = r.loadType(); err != nil {
+            return 0, err
+        }
+        return int(((typ & 0x3F)<<8) | typ2), nil
+    } else {
+        var data []byte
+        if data, err = r.readLen(4); err != nil {
+            return 0, err
+        }
+        buf := bytes.NewReader(data)
+        err = binary.Read(buf, binary.BigEndian, &length)
+        if err != nil {
+            return 0, err
+        }
+        return int(length), nil
+    }
+    return 0, nil
+}
+
+func (r *rdb) loadKey() (string, error) {
+    return r.loadStr()
+}
+
+func (r *rdb) loadStr() (string, error) {
+    var length int
+    var err error
+    if length, err = r.loadLen(); err != nil {
+        return "", err
+    }
+    buf := make([]byte, length)
+    if _, err = io.ReadFull(r.rdbHandler, buf); err != nil {
+        return "", err
+    }
+    return string(buf), nil
+}
+
+func (r *rdb) loadVal(typ uint8) (*Element, error) {
+    var str string
+    var err error
+    switch typ{
+    case REDIS_RDB_TYPE_STRING:
+        if str, err = r.loadStr(); err != nil {
+            return nil, err
+        }
+        return NewElement(JON_STRING, str), nil
+    case REDIS_RDB_TYPE_LIST:
+        var num int
+        var vals [][]byte
+        if num, err = r.loadLen(); err != nil {
+            return nil, err
+        }
+        for i := 0 ; i < num; i ++ {
+            if str, err = r.loadStr(); err != nil {
+                return nil, err
+            }
+            vals = append(vals, []byte(str))
+        }
+        return NewElement(JON_LIST, vals), nil
+    case REDIS_RDB_TYPE_HASH:
+        var num int
+        var key, val string
+        var dataMap map[string]string
+        dataMap = make(map[string]string)
+        if num, err = r.loadLen(); err != nil {
+            return nil, err
+        }
+        for i := 0; i < num; i ++ {
+            if key, err = r.loadStr(); err != nil {
+                return nil, err
+            }
+            if val, err = r.loadStr(); err != nil {
+                return nil, err
+            }
+            dataMap[key] = val
+        }
+        return NewElement(JON_HASH, dataMap), nil
+    case REDIS_RDB_TYPE_SET:
+    case REDIS_RDB_TYPE_ZSET:
+    default:
+        return nil, nil
+    }
     return nil, nil
+}
+
+func (r *rdb) readLen(length int) ([]byte, error) {
+    buf := make([]byte, 9)
+    if _, err := io.ReadFull(r.rdbHandler, buf); err != nil {
+        return nil, err
+    }
+    return buf, nil
 }
