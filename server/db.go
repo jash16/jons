@@ -133,6 +133,10 @@ func (d *DB) Copy() *DB {
     return d2
 }
 
+func (d *DB) Size() int {
+    return len(d.DataMap)
+}
+
 func NewJonDb() *JonDb {
     return &JonDb {
         Dict: NewDB(),
@@ -244,8 +248,4 @@ func (d *JonDb) Haskey(K string) bool {
         return true
     }
     return false
-}
-
-func (d *JonDb) Persist() {
-
 }

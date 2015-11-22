@@ -44,7 +44,7 @@ func NewServer(opt *ServerOptions) *Server {
         cmdMap: make(map[string]cmdFunc),
         subMap: make(map[string][]*Client),
         subExitChan: make(chan subExit),
-        p: &rdb{},
+      //  p: &rdb{},
         rdbFlag: false,
     }
 }
@@ -70,6 +70,11 @@ func (s *Server) Main() {
     tcpSrv := &tcpServer {
         ctx: ctx,
     }
+
+    p := &rdb {
+        ctx: ctx,
+    }
+    s.p = p
 
     s.wg.Wrap(func() {
         protocol.TCPServer(s.tcpListener, tcpSrv, s.logger)
