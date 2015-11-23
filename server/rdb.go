@@ -88,7 +88,8 @@ ERROR:
 func (r *rdb) saveKeyValPair(key string, val *Element, expTime int64, nowTime int64) error {
     var err error
     if expTime != -1 {
-        if expTime >= nowTime { //has expire
+        r.ctx.s.logf("exp is: %d, now is: %d", expTime, nowTime)
+        if expTime <= nowTime { //has expire
             return nil
         }
         if err = r.saveType(REDIS_RDB_OPCODE_EXPIRETIME_MS); err != nil {

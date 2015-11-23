@@ -36,6 +36,7 @@ func (s *Server) Register() {
 
     s.cmdMap["expire"] = s.Expire
     s.cmdMap["pexpire"] = s.Pexpire
+    s.cmdMap["type"] = s.Type
 
 //for sub pub
     s.cmdMap["subscribe"] = s.Subscribe

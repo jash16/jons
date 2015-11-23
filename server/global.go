@@ -115,3 +115,37 @@ func (s *Server) Pexpire(cli *Client) error {
     cli.Write(resp)
     return nil
 }
+
+func (s *Server)Type(cli *Client) error {
+    if cli.argc != 2 {
+        cli.ErrorResponse(wrongArgs, "type")
+        return nil
+    }
+    var resp string
+    db := s.db[cli.selectDb]
+    key := string(cli.argv[1])
+    db.RLock()
+    val := db.LookupKey(key)
+    if val == nil {
+        resp = "none"
+    } else {
+        switch val.Type {
+        case JON_STRING:
+            resp = "string"
+        case JON_HASH:
+            resp = "hash"
+        case JON_LIST:
+            resp = "list"
+        case JON_SET:
+            resp = "set"
+        case JON_SORTSET:
+            resp = "zset"
+        default:
+            resp = "none"
+        }
+    }
+    db.RUnlock()
+    resp = fmt.Sprintf("+%s\r\n", resp)
+    err := cli.Write(resp)
+    return err
+}
