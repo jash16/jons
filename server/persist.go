@@ -1,25 +1,14 @@
 package server
-
+import(
+    "time"
+)
 type Persist interface {
     Save(db []*JonDb) error
     Load(file string) error
 }
 
-func (s *Server)Bgsave(cli *Client) error {
-    if cli.argc != 1 {
-        cli.ErrorResponse(wrongArgs, "bgsave")
-        return nil
-    }
+func (s *Server)dbCopy() []*JonDb {
     var dbs []*JonDb
-
-    s.Lock()
-    if s.rdbFlag {
-        s.Unlock()
-        return nil
-    }
-
-    s.rdbFlag = true
-    s.Unlock()
 
     for _, d := range s.db {
         d.RLock()
@@ -32,8 +21,75 @@ func (s *Server)Bgsave(cli *Client) error {
         dbs = append(dbs, nd)
         d.RUnlock()
     }
+    return dbs
+}
+
+func (s *Server)Bgsave(cli *Client) error {
+    if cli.argc != 1 {
+        cli.ErrorResponse(wrongArgs, "bgsave")
+        return nil
+    }
+    var dbs []*JonDb
+    var inRdb bool
+    s.Lock()
+    if s.rdbFlag {
+        inRdb = true
+    } else {
+        s.rdbFlag = true
+    }
+    s.Unlock()
+    if inRdb {
+         err := cli.Write("-ERR already in bgsave\r\n")
+         return err
+    }
+/*
+    for _, d := range s.db {
+        d.RLock()
+        dict := d.Dict.Copy()
+        expire := d.Expires.Copy()
+        nd := &JonDb {
+            Dict: dict,
+            Expires: expire,
+        }
+        dbs = append(dbs, nd)
+        d.RUnlock()
+    }
+    */
+    dbs = s.dbCopy()
     err := cli.Write("+Background saving started\r\n")
+    time.Sleep(100 * time.Second)
     go s.rdbSave(dbs)
+    return err
+}
+
+func (s *Server) Save(cli *Client) error {
+    if cli.argc != 1 {
+        cli.ErrorResponse(wrongArgs, "bgsave")
+        return nil
+    }
+    var dbs []*JonDb
+    var resp string
+    var inRdb bool
+    s.Lock()
+    if s.rdbFlag {
+    //    s.Unlock()
+        inRdb = true
+    } else {
+        s.rdbFlag = true
+    }
+    s.Unlock()
+    if inRdb {
+        err := cli.Write("-ERR already in bgsave\r\n")
+        return err
+    }
+    dbs = s.dbCopy()
+    err := s.rdbSave(dbs)
+    if err != nil {
+        resp = "-ERR\r\n"
+    } else {
+        resp = "+OK\r\n"
+    }
+    err = cli.Write(resp)
     return err
 }
 

@@ -5,6 +5,7 @@ import (
     "fmt"
     "io"
     "os"
+    "net"
     "strconv"
     "encoding/binary"
     "bytes"
@@ -12,9 +13,15 @@ import (
 
 type rdb struct {
     rdbHandler *os.File
+    slaves []net.Conn
+    typ int
     ctx *context
 }
 
+const (
+    RDBFILE int = 0
+    RDBSLAVE int = 1
+)
 const (
     REDIS_RDB_6BITLEN uint8 = 0
     REDIS_RDB_14BITLEN uint8 = 1
@@ -34,6 +41,13 @@ const (
     REDIS_RDB_TYPE_ZSET   uint8 = 4
     REDIS_RDB_TYPE_INT64  uint8 = 5
 )
+
+func (r *rdb) Init(typ int) {
+    switch typ {
+    case RDBFILE:
+    case RDBSLAVE:
+    }
+}
 
 func (r *rdb) Save(db []*JonDb) error {
     var err error

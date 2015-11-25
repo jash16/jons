@@ -22,15 +22,21 @@ type Server struct {
 
     cmdMap map[string]cmdFunc
 
+    //for replication
+    slaves []*Client
+
     //for sub pub
     subMap map[string][]*Client
     subLock sync.RWMutex
     subExitChan chan subExit
 
     rdbFlag bool
-    rdbHandler *os.File
+    //rdbHandler *os.File
     //persist
     p Persist
+
+    //for aof
+    aofSelectDb int
     wg common.WaitGroupWrapper
     sync.Mutex
     exitChan chan bool

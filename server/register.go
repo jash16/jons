@@ -34,9 +34,12 @@ func (s *Server) Register() {
     s.cmdMap["keys"] = s.Keys
     s.cmdMap["del"] = s.Del
 
+//for expire
     s.cmdMap["expire"] = s.Expire
     s.cmdMap["pexpire"] = s.Pexpire
     s.cmdMap["type"] = s.Type
+    s.cmdMap["expireat"] = s.ExpireAt
+    s.cmdMap["pexpireat"] = s.PexpireAt
 
 //for sub pub
     s.cmdMap["subscribe"] = s.Subscribe
@@ -44,4 +47,5 @@ func (s *Server) Register() {
 
 //for persist
     s.cmdMap["bgsave"] = s.Bgsave
+    s.cmdMap["save"] = s.Save
 }
