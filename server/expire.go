@@ -70,7 +70,7 @@ func (s *Server) PexpireAt(cli *Client) error {
     if err != nil {
         return cli.ErrorResponse(wrongArgType)
     }
-    expired := int64(expireTime) * 100000
+    expired := int64(expireTime)
     nowMs := common.GetMsTime()
     db := s.db[cli.selectDb]
     db.Lock()
@@ -101,7 +101,7 @@ func (s *Server) ExpireAt(cli *Client) error {
     if err != nil {
         return cli.ErrorResponse(wrongArgType)
     }
-    expired := int64(expireTime)
+    expired := int64(expireTime * 100000)
     nowMs := common.GetMsTime()
     db := s.db[cli.selectDb]
     db.Lock()

@@ -9,9 +9,15 @@ import (
     "log"
     "net"
     "sync"
+    "sync/atomic"
 )
 
-type cmdFunc func(cli *Client) error
+type Role int32
+
+const (
+    Master Role = 0
+    Slave Role = 1
+)
 
 type Server struct {
     db []*JonDb
@@ -24,6 +30,8 @@ type Server struct {
 
     //for replication
     slaves []*Client
+    role   Role
+    masterAddr string
 
     //for sub pub
     subMap map[string][]*Client
@@ -36,7 +44,12 @@ type Server struct {
     p Persist
 
     //for aof
-    aofSelectDb int
+    //aofSelectDb int
+    aof *aof
+    dc chan dirtyCmd
+    cmds []dirtyCmd
+    aofFlag int32
+
     wg common.WaitGroupWrapper
     sync.Mutex
     exitChan chan bool
@@ -50,8 +63,9 @@ func NewServer(opt *ServerOptions) *Server {
         cmdMap: make(map[string]cmdFunc),
         subMap: make(map[string][]*Client),
         subExitChan: make(chan subExit),
-      //  p: &rdb{},
+        dc: make(chan dirtyCmd, 5000),
         rdbFlag: false,
+        aofFlag: 0,
     }
 }
 
@@ -90,6 +104,9 @@ func (s *Server) Main() {
     s.wg.Wrap(func() {
         s.pubsubLoop()
     })
+    s.wg.Wrap(func() {
+        s.srvLoop()
+    })
 }
 
 func (s *Server) logf(data string, args...interface{}) {
@@ -104,15 +121,31 @@ func (s *Server) initRdb() error {
     return err
 }
 
-func (s *Server) expireLoop() {
-    //var expireKeysPerTime int64
-    //var expireTimesPerTime int64
-    ticker := time.NewTicker(100 * time.Millisecond)
+func (s *Server) srvLoop() {
+    //rdb
+    //aof
+    aofTicker := time.NewTicker(1 * time.Second)
+    rdbTicker := time.NewTicker(5 * time.Second)
     for {
         select {
-        case <- ticker.C:
+        case cmd := <- s.dc:
+            s.cmds = append(s.cmds, cmd)
+        case <- aofTicker:
+            if atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
+                cmds := make([]dirtyCmd, len(s.cmds))
+                copy(cmds, s.cmds)
+                s.cmds = s.cmds[:]
+                err := s.aof.appendCmdSToFile(cmds)
+                if err != nil {
+                    cmds = append(cmds, s.cmds)
+                    s.cmds = cmds
+                }
+                s.aofFlag = 0
+            }
         }
     }
+    //replication
+    //expire
 }
 
 func (s *Server) pubsubLoop() {
