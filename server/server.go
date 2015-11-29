@@ -125,20 +125,26 @@ func (s *Server) srvLoop() {
     //rdb
     //aof
     aofTicker := time.NewTicker(1 * time.Second)
-    rdbTicker := time.NewTicker(5 * time.Second)
+    //rdbTicker := time.NewTicker(5 * time.Second)
     for {
         select {
         case cmd := <- s.dc:
             s.cmds = append(s.cmds, cmd)
-        case <- aofTicker:
+        case <- aofTicker.C:
             if atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
                 cmds := make([]dirtyCmd, len(s.cmds))
                 copy(cmds, s.cmds)
                 s.cmds = s.cmds[:]
                 err := s.aof.appendCmdSToFile(cmds)
                 if err != nil {
-                    cmds = append(cmds, s.cmds)
-                    s.cmds = cmds
+                    cmds2 := make([]dirtyCmd, len(cmds) + len(s.cmds))
+                    for _, val := range cmds {
+                        cmds2 = append(cmds2, val)
+                    }
+                    for _, val := range s.cmds {
+                        cmds2 = append(cmds2, val)
+                    }
+                    s.cmds = cmds2
                 }
                 s.aofFlag = 0
             }

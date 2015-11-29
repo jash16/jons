@@ -101,7 +101,7 @@ func (s *Server) rdbSave(dbs []*JonDb) error {
 }
 
 func (s *Server) Bgrewriteaof(cli *Client) error {
-    db := s.dbCopy()
+    //db := s.dbCopy()
 
     return nil
 }
