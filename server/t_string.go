@@ -55,6 +55,12 @@ func (s *Server) Set(cli *Client) error {
             }
         }
     }
+    cmd := dirtyCmd {
+        selectDb: cli.selectDb,
+        argv: cli.argv,
+        argc: cli.argc,
+    }
+    s.dc <- cmd
     K := key_str
     V := NewElement(JON_STRING, val_str)
     db := s.db[cli.selectDb]

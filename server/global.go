@@ -13,6 +13,7 @@ func (s *Server)Del(cli *Client) error {
         return nil
     }
     db := s.db[cli.selectDb]
+    db.Lock()
     del_num := 0
     for i := 1; i < int(cli.argc); i ++ {
         key_str := string(cli.argv[i])
@@ -20,6 +21,13 @@ func (s *Server)Del(cli *Client) error {
             del_num ++
         }
     }
+    db.Unlock()
+    cmd := dirtyCmd {
+        selectDb: cli.selectDb,
+        argc: cli.argc,
+        argv: cli.argv,
+    }
+    s.dc <- cmd
     resp := fmt.Sprintf(":%d\r\n", del_num)
     cli.Write(resp)
     return nil
@@ -33,6 +41,7 @@ func (s *Server)Keys(cli *Client) error {
     }
     key_str := string(cli.argv[1])
     db := s.db[cli.selectDb]
+    db.RLock()
     key_num := 0
     if len(key_str) == 1 && key_str == "*" {
         respKeys := db.Keys()
@@ -41,7 +50,7 @@ func (s *Server)Keys(cli *Client) error {
         for _, k := range respKeys {
             resp = fmt.Sprintf("%s$%d\r\n%s\r\n", resp, len(k), k)
         }
-        cli.Write(resp)
+        //cli.Write(resp)
 
     } else {
         hasWild := strings.Contains(key_str, "*")
@@ -51,12 +60,13 @@ func (s *Server)Keys(cli *Client) error {
             } else {
                 resp = fmt.Sprintf("*0\r\n")
             }
-            cli.Write(resp)
+            //cli.Write(resp)
         } else {
             
         }
     }
-    return nil
+    db.RUnlock()
+    return cli.Write(resp)
 }
 
 func (s *Server)Type(cli *Client) error {

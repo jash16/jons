@@ -1,5 +1,6 @@
 package server
 import(
+    "sync/atomic"
     "time"
 )
 type Persist interface {
@@ -101,7 +102,14 @@ func (s *Server) rdbSave(dbs []*JonDb) error {
 }
 
 func (s *Server) Bgrewriteaof(cli *Client) error {
-    //db := s.dbCopy()
-
+    resp := "Background append only file rewriting started"
+    if atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
+        cli.Write(resp)
+        db := s.dbCopy()
+        err := s.aof.bgRewrite(db)
+        if err != nil {
+            s.logf("aof bgRewrite err - %s", err)
+        }
+    }
     return nil
 }

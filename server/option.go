@@ -8,4 +8,5 @@ type ServerOptions struct {
     TCPAddr string
     ClientTimeout time.Duration
     DbNum int
+    SyncEvery bool
 }

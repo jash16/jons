@@ -96,6 +96,7 @@ func (s *Server) Main() {
     }
     s.p = p
 
+    s.aof = &aof{aofSelectDb: -10,}
     s.initRdb()
 
     s.wg.Wrap(func() {
@@ -122,36 +123,50 @@ func (s *Server) initRdb() error {
 }
 
 func (s *Server) srvLoop() {
-    //rdb
-    //aof
+    expireTicker := time.NewTicker(1 * time.Second)
     aofTicker := time.NewTicker(1 * time.Second)
-    //rdbTicker := time.NewTicker(5 * time.Second)
+    rdbTicker := time.NewTicker(5 * time.Second)
     for {
         select {
         case cmd := <- s.dc:
+            s.logf("receive command")
             s.cmds = append(s.cmds, cmd)
-        case <- aofTicker.C:
-            if atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
+            if s.Opts.SyncEvery && atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
                 cmds := make([]dirtyCmd, len(s.cmds))
                 copy(cmds, s.cmds)
-                s.cmds = s.cmds[:]
                 err := s.aof.appendCmdSToFile(cmds)
                 if err != nil {
-                    cmds2 := make([]dirtyCmd, len(cmds) + len(s.cmds))
-                    for _, val := range cmds {
-                        cmds2 = append(cmds2, val)
-                    }
-                    for _, val := range s.cmds {
-                        cmds2 = append(cmds2, val)
-                    }
-                    s.cmds = cmds2
+                    s.logf("append only file: %s", err)
+                    s.cmds = cmds
                 }
-                s.aofFlag = 0
+                atomic.CompareAndSwapInt32(&s.aofFlag, 1, 0)
             }
+        case <- aofTicker.C:
+            if len(s.cmds) > 0 && atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
+                s.logf("in here")
+                cmds := make([]dirtyCmd, len(s.cmds))
+                copy(cmds, s.cmds)
+                s.cmds = s.cmds[:0]
+                err := s.aof.appendCmdSToFile(cmds)
+                if err != nil {
+                    s.logf("append only file: %s", err)
+                    for _, val := range s.cmds {
+                        cmds = append(cmds, val)
+                    }
+                    s.cmds = cmds
+                }
+                atomic.CompareAndSwapInt32(&s.aofFlag, 1, 0)
+                //s.aofFlag = 0
+            }
+        case <- rdbTicker.C:
+        case <- expireTicker.C:
+
+        case <- s.exitChan:
+            goto exit
         }
     }
-    //replication
-    //expire
+exit:
+    s.logf("srvLoop done!")
 }
 
 func (s *Server) pubsubLoop() {
