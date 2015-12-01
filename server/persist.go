@@ -102,7 +102,7 @@ func (s *Server) rdbSave(dbs []*JonDb) error {
 }
 
 func (s *Server) Bgrewriteaof(cli *Client) error {
-    resp := "Background append only file rewriting started"
+    resp := "+Background append only file rewriting started\r\n"
     if atomic.CompareAndSwapInt32(&s.aofFlag, 0, 1) {
         cli.Write(resp)
         db := s.dbCopy()

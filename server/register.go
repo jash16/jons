@@ -48,4 +48,5 @@ func (s *Server) Register() {
 //for persist
     s.cmdMap["bgsave"] = s.Bgsave
     s.cmdMap["save"] = s.Save
+    s.cmdMap["bgrewriteaof"] = s.Bgrewriteaof
 }
